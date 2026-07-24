@@ -77,7 +77,7 @@ dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 生成便携版：
 
 ```powershell
-.\scripts\package.ps1 -Version 0.1.0
+.\scripts\package.ps1 -Version 1.0.1
 ```
 
 如果 PATH 中存在 Inno Setup `ISCC.exe`，脚本还会生成安装包。

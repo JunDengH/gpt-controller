@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>GptAccountManager</AssemblyName>
     <RootNamespace>GptAccountManager</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>1.0.1</Version>
     <Authors>GPT Account Manager contributors</Authors>
     <Description>Local-first account switcher and quota monitor for the ChatGPT Windows app.</Description>
   </PropertyGroup>
