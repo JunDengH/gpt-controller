@@ -20,6 +20,16 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        var isCompactUiPreview = e.Args.Any(
+            argument => string.Equals(
+                argument,
+                "--ui-preview-compact",
+                StringComparison.OrdinalIgnoreCase));
+        var isUiPreview = isCompactUiPreview || e.Args.Any(
+            argument => string.Equals(
+                argument,
+                "--ui-preview",
+                StringComparison.OrdinalIgnoreCase));
         _singleInstance = new Mutex(
             initiallyOwned: true,
             @"Local\GptAccountManager.Application",
@@ -88,8 +98,15 @@ public partial class App : Application
                 quotaService,
                 switchCoordinator,
                 processController,
-                dialogs);
+                dialogs,
+                isUiPreview);
             _mainWindow = new MainWindow(_viewModel);
+            if (isCompactUiPreview)
+            {
+                _mainWindow.Width = 960;
+                _mainWindow.Height = 680;
+            }
+
             MainWindow = _mainWindow;
             _trayIcon = new TrayIconService(
                 ShowMainWindow,
@@ -100,6 +117,10 @@ public partial class App : Application
 
             _mainWindow.Show();
             await _viewModel.InitializeAsync();
+            if (!isUiPreview && _viewModel.StartMinimized)
+            {
+                _mainWindow.Hide();
+            }
         }
         catch (Exception exception)
         {
@@ -128,7 +149,7 @@ public partial class App : Application
         _mainWindow.Activate();
     }
 
-    private void ExitApplication()
+    public void ExitApplication()
     {
         if (IsExiting)
         {

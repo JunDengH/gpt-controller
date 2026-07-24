@@ -232,7 +232,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
                 {
                     name = "gpt-account-manager",
                     title = "GPT Account Manager",
-                    version = "1.0.1"
+                    version = "1.1.1"
                 },
                 capabilities = new
                 {

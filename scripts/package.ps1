@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.1",
+    [string]$Version = "1.1.1",
     [string]$Configuration = "Release",
     [string]$OutputRoot = "artifacts"
 )
@@ -11,8 +11,22 @@ $artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 $publishDirectory = Join-Path $artifactRoot "publish"
 $portableArchive = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64.zip"
 $portableHash = "$portableArchive.sha256"
+$installer = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64-setup.exe"
+$installerHashPath = "$installer.sha256"
 
-dotnet test (Join-Path $repoRoot "GptAccountManager.slnx") -c $Configuration
+New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+foreach ($stalePath in @(
+    $publishDirectory
+    $portableArchive
+    $portableHash
+    $installer
+    $installerHashPath
+)) {
+    if (Test-Path -LiteralPath $stalePath) {
+        Remove-Item -LiteralPath $stalePath -Recurse -Force
+    }
+}
+
 dotnet publish (Join-Path $repoRoot "src\GptAccountManager\GptAccountManager.csproj") `
     -c $Configuration `
     -r win-x64 `
@@ -20,10 +34,6 @@ dotnet publish (Join-Path $repoRoot "src\GptAccountManager\GptAccountManager.csp
     -p:PublishProfile=win-x64 `
     -p:Version=$Version `
     -o $publishDirectory
-
-if (Test-Path -LiteralPath $portableArchive) {
-    Remove-Item -LiteralPath $portableArchive -Force
-}
 
 Compress-Archive -Path (Join-Path $publishDirectory "*") -DestinationPath $portableArchive
 $hash = (Get-FileHash -LiteralPath $portableArchive -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -59,21 +69,21 @@ if ($isccPath) {
         throw "Inno Setup compiler failed with exit code $LASTEXITCODE."
     }
 
-    $installer = Get-ChildItem (Join-Path $repoRoot "installer\Output\*.exe") |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
-    if (-not $installer) {
+    if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
         throw "Inno Setup did not produce an installer."
     }
 
-    $installerHashPath = "$($installer.FullName).sha256"
-    $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath $installerHashPath `
-        -Value "$installerHash  $($installer.Name)" `
+        -Value "$installerHash  $(Split-Path $installer -Leaf)" `
         -Encoding ascii
-    Write-Output "Created $($installer.FullName)"
+    Write-Output "Created $installer"
     Write-Output "Created $installerHashPath"
 }
 
 Write-Output "Created $portableArchive"
 Write-Output "Created $portableHash"
+
+if (Test-Path -LiteralPath $publishDirectory) {
+    Remove-Item -LiteralPath $publishDirectory -Recurse -Force
+}

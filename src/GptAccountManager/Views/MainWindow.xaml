@@ -2,274 +2,1036 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:converters="clr-namespace:GptAccountManager.Converters"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="GPT Account Manager"
-        Width="1120"
-        Height="760"
-        MinWidth="820"
-        MinHeight="600"
-        WindowStartupLocation="CenterScreen">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        Width="1280"
+        Height="800"
+        MinWidth="960"
+        MinHeight="680"
+        Icon="pack://application:,,,/Assets/AppIcon.ico"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        StateChanged="Window_StateChanged">
+    <Window.Resources>
+        <converters:AdaptiveSizeConverter x:Key="AdaptiveSizeConverter" />
+        <converters:ResponsiveCardHeightConverter x:Key="ResponsiveCardHeightConverter" />
+        <converters:ResponsiveCardWidthConverter x:Key="ResponsiveCardWidthConverter" />
+        <converters:ViewportContentWidthConverter x:Key="ViewportContentWidthConverter" />
 
-        <Border Grid.Row="0"
-                Padding="28,22"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1">
-            <Grid>
+        <Style TargetType="Button"
+               BasedOn="{StaticResource RoundedButtonStyle}">
+            <Setter Property="MinHeight"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}" />
+            <Setter Property="FontSize"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}" />
+        </Style>
+
+        <Style x:Key="ResponsivePrimaryButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="MinHeight"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}" />
+            <Setter Property="FontSize"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}" />
+        </Style>
+
+        <Style x:Key="ResponsiveCardActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource CardActionButtonStyle}">
+            <Setter Property="Height"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='36,42'}" />
+            <Setter Property="MinHeight"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='36,42'}" />
+            <Setter Property="FontSize"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='11,14'}" />
+        </Style>
+    </Window.Resources>
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="72"
+                            CornerRadius="14"
+                            GlassFrameThickness="0"
+                            NonClientFrameEdges="None"
+                            ResizeBorderThickness="7"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Border x:Name="WindowFrame"
+            Background="{StaticResource BackgroundBrush}"
+            BorderBrush="{StaticResource BorderSubtleBrush}"
+            BorderThickness="1"
+            CornerRadius="14"
+            SnapsToDevicePixels="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="72" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="58" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="TitleBarFrame"
+                    Grid.Row="0"
+                    Background="{StaticResource TitleBarBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="13,13,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="22,0,12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Image Width="36"
+                               Height="36"
+                               Source="pack://application:,,,/Assets/AppIcon.png"
+                               Stretch="Uniform" />
+                        <TextBlock Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='15,17'}"
+                                   FontWeight="SemiBold"
+                                   Text="GPT Account Manager" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Style="{StaticResource TitleBarButtonStyle}"
+                                Click="Minimize_Click"
+                                ToolTip="最小化">
+                            <iconPacks:PackIconMaterial Width="18"
+                                                        Height="18"
+                                                        Kind="WindowMinimize" />
+                        </Button>
+                        <Button Style="{StaticResource TitleBarButtonStyle}"
+                                Click="MaximizeRestore_Click"
+                                ToolTip="最大化或还原">
+                            <iconPacks:PackIconMaterial x:Name="MaximizeIcon"
+                                                        Width="18"
+                                                        Height="18"
+                                                        Kind="WindowMaximize" />
+                        </Button>
+                        <Button Style="{StaticResource TitleBarButtonStyle}"
+                                Click="Close_Click"
+                                ToolTip="关闭">
+                            <iconPacks:PackIconMaterial Width="18"
+                                                        Height="18"
+                                                        Kind="WindowClose" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="116" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel>
-                    <TextBlock FontSize="26"
-                               FontWeight="SemiBold"
-                               Text="GPT Account Manager" />
-                    <TextBlock Margin="0,6,0,0"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="13"
-                               Text="本地加密保存 · 官方 OAuth · 事务式账号切换" />
-                </StackPanel>
+                <Grid Grid.Column="0">
+                    <StackPanel Margin="0,54,0,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Top">
+                        <Border Width="58"
+                                Height="58"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="29"
+                                ToolTip="GPT Account Manager">
+                            <Image Width="38"
+                                   Height="38"
+                                   Source="pack://application:,,,/Assets/AppIcon.png"
+                                   Stretch="Uniform" />
+                        </Border>
 
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <Button Margin="0,0,10,0"
-                            Command="{Binding ImportCurrentCommand}"
-                            Content="导入当前账号" />
-                    <Button Margin="0,0,10,0"
-                            Command="{Binding RefreshAllCommand}"
-                            Content="刷新全部" />
-                    <Button Background="{StaticResource AccentBrush}"
-                            BorderBrush="{StaticResource AccentBrush}"
-                            Command="{Binding AddAccountCommand}"
-                            Foreground="#10201C"
-                            Content="添加账号" />
-                </StackPanel>
-            </Grid>
-        </Border>
+                        <Border Width="60"
+                                Height="148"
+                                Margin="0,44,0,0"
+                                Padding="0,12"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="30">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="1"
-                      Padding="28"
-                      VerticalScrollBarVisibility="Auto">
-            <Grid>
-                <ItemsControl ItemsSource="{Binding Accounts}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Width="500"
-                                    MinHeight="270"
-                                    Margin="0,0,18,18"
-                                    Padding="22"
-                                    Background="{StaticResource SurfaceBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="14">
+                                <Button Grid.Row="0"
+                                        Command="{Binding ShowAccountsCommand}"
+                                        ToolTip="账号">
+                                    <Button.Style>
+                                        <Style TargetType="Button"
+                                               BasedOn="{StaticResource NavIconButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAccountsPage}"
+                                                             Value="True">
+                                                    <Setter Property="Background" Value="#3F4043" />
+                                                    <Setter Property="Effect"
+                                                            Value="{StaticResource NavSelectionShadow}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <iconPacks:PackIconMaterial Width="23"
+                                                                Height="23"
+                                                                Kind="AccountOutline" />
+                                </Button>
+
+                                <Button Grid.Row="1"
+                                        Command="{Binding ShowSettingsCommand}"
+                                        ToolTip="设置">
+                                    <Button.Style>
+                                        <Style TargetType="Button"
+                                               BasedOn="{StaticResource NavIconButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSettingsPage}"
+                                                             Value="True">
+                                                    <Setter Property="Background" Value="#3F4043" />
+                                                    <Setter Property="Effect"
+                                                            Value="{StaticResource NavSelectionShadow}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <iconPacks:PackIconMaterial Width="24"
+                                                                Height="24"
+                                                                Kind="CogOutline" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Column="1">
+                    <Grid x:Name="AccountsPage">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAccountsPage}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+
+                        <Grid Margin="18,42,32,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='25,29'}"
+                                               FontWeight="SemiBold"
+                                               Text="账号管理" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                               Text="安全切换 ChatGPT 账号并查看每周额度" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='126,146'}"
+                                            MinHeight="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}"
+                                            Margin="0,0,12,0"
+                                            Command="{Binding RefreshAllCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <iconPacks:PackIconMaterial Width="20"
+                                                                        Height="20"
+                                                                        Margin="0,0,8,0"
+                                                                        Kind="Refresh" />
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                                       Text="刷新全部" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='138,158'}"
+                                            MinHeight="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}"
+                                            Command="{Binding AddAccountCommand}"
+                                            Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <iconPacks:PackIconMaterial Width="21"
+                                                                        Height="21"
+                                                                        Margin="0,0,8,0"
+                                                                        Kind="Plus" />
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                                       Text="添加账号" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <ScrollViewer Grid.Row="1"
+                                          Margin="0,44,0,0"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
                                 <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="*" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <Grid Grid.Row="0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock FontSize="19"
-                                                           FontWeight="SemiBold"
-                                                           Text="{Binding Nickname}" />
-                                                <Border x:Name="ActiveBadge"
-                                                        Margin="10,0,0,0"
-                                                        Padding="8,3"
-                                                        Background="#23584D"
-                                                        CornerRadius="10">
+                                    <ItemsControl Margin="-8,0,0,0"
+                                                  VerticalAlignment="Top"
+                                                  ItemsSource="{Binding Accounts}">
+                                        <ItemsControl.Style>
+                                            <Style TargetType="ItemsControl">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Accounts.Count}"
+                                                                 Value="0">
+                                                        <Setter Property="Visibility"
+                                                                Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ItemsControl.Style>
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel ItemWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource ResponsiveCardWidthConverter}}"
+                                                           ItemHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource ResponsiveCardHeightConverter}}"
+                                                           Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="HorizontalAlignment"
+                                                        Value="Stretch" />
+                                                <Setter Property="VerticalAlignment"
+                                                        Value="Stretch" />
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="8"
+                                                        Padding="22,18,22,14"
+                                                        Background="{StaticResource SurfaceBrush}"
+                                                        CornerRadius="20">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Setter Property="BorderBrush"
+                                                                    Value="{StaticResource BorderBrush}" />
+                                                            <Setter Property="BorderThickness"
+                                                                    Value="1" />
+                                                            <Setter Property="Effect"
+                                                                    Value="{StaticResource CardShadow}" />
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                <DataTrigger Binding="{Binding IsActive}"
+                                                                             Value="True">
+                                                                    <Setter Property="BorderBrush"
+                                                                            Value="{StaticResource AccentBrush}" />
+                                                                    <Setter Property="BorderThickness"
+                                                                            Value="2" />
+                                                                    <Setter Property="Effect"
+                                                                            Value="{StaticResource ActiveCardShadow}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Border.Style>
-                                                    <TextBlock FontSize="11"
-                                                               Foreground="{StaticResource AccentBrush}"
-                                                               Text="当前账号" />
+
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+
+                                                        <StackPanel Grid.Row="0"
+                                                                    Orientation="Horizontal">
+                                                            <Border Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='42,46'}"
+                                                                    Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='42,46'}"
+                                                                    Background="#696A6D"
+                                                                    CornerRadius="23">
+                                                                <iconPacks:PackIconMaterial Width="24"
+                                                                                            Height="24"
+                                                                                            HorizontalAlignment="Center"
+                                                                                            VerticalAlignment="Center"
+                                                                                            Foreground="#F1F1F2"
+                                                                                            Kind="AccountOutline" />
+                                                            </Border>
+                                                            <TextBlock Margin="14,0,0,0"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='18,21'}"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding Nickname}" />
+                                                        </StackPanel>
+
+                                                        <Grid Grid.Row="1" Margin="0,14,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="28" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid Width="22"
+                                                                  Height="22"
+                                                                  HorizontalAlignment="Left">
+                                                                <iconPacks:PackIconMaterial Width="19"
+                                                                                            Height="19"
+                                                                                            Foreground="{StaticResource AccentBrush}"
+                                                                                            Kind="Check">
+                                                                    <iconPacks:PackIconMaterial.Style>
+                                                                        <Style TargetType="iconPacks:PackIconMaterial">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsActive}"
+                                                                                             Value="True">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </iconPacks:PackIconMaterial.Style>
+                                                                </iconPacks:PackIconMaterial>
+                                                                <iconPacks:PackIconMaterial Width="19"
+                                                                                            Height="19"
+                                                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                            Kind="EmailOutline">
+                                                                    <iconPacks:PackIconMaterial.Style>
+                                                                        <Style TargetType="iconPacks:PackIconMaterial">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Visible" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsActive}"
+                                                                                             Value="True">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </iconPacks:PackIconMaterial.Style>
+                                                                </iconPacks:PackIconMaterial>
+                                                            </Grid>
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,16'}"
+                                                                       Text="{Binding Email}"
+                                                                       ToolTip="{Binding Email}" />
+                                                        </Grid>
+
+                                                        <Grid Grid.Row="2" Margin="0,11,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="28" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <iconPacks:PackIconMaterial Width="19"
+                                                                                        Height="19"
+                                                                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                        Kind="CrownOutline" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,16'}"
+                                                                       Text="{Binding PlanDisplayName}" />
+                                                        </Grid>
+
+                                                        <Grid Grid.Row="3" Margin="0,11,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="28" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid Width="21"
+                                                                  Height="21"
+                                                                  HorizontalAlignment="Left">
+                                                                <iconPacks:PackIconMaterial Width="19"
+                                                                                            Height="19"
+                                                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                            Kind="AccountOutline">
+                                                                    <iconPacks:PackIconMaterial.Style>
+                                                                        <Style TargetType="iconPacks:PackIconMaterial">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Visible" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsOrganization}"
+                                                                                             Value="True">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </iconPacks:PackIconMaterial.Style>
+                                                                </iconPacks:PackIconMaterial>
+                                                                <iconPacks:PackIconMaterial Width="19"
+                                                                                            Height="19"
+                                                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                            Kind="OfficeBuildingOutline">
+                                                                    <iconPacks:PackIconMaterial.Style>
+                                                                        <Style TargetType="iconPacks:PackIconMaterial">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsOrganization}"
+                                                                                             Value="True">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </iconPacks:PackIconMaterial.Style>
+                                                                </iconPacks:PackIconMaterial>
+                                                            </Grid>
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,16'}"
+                                                                       Text="{Binding OwnershipDisplayName}"
+                                                                       ToolTip="{Binding OwnershipDisplayName}" />
+                                                        </Grid>
+
+                                                        <Border Grid.Row="4"
+                                                                Height="1"
+                                                                Margin="0,14,0,0"
+                                                                Background="{StaticResource BorderSubtleBrush}" />
+
+                                                        <StackPanel Grid.Row="5" Margin="0,13,0,0">
+                                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
+                                                                       Text="周剩余" />
+                                                            <TextBlock Margin="0,3,0,0"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='25,30'}"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding QuotaRemainingText}" />
+                                                        </StackPanel>
+
+                                                        <ProgressBar Grid.Row="6"
+                                                                     Margin="0,7,0,0"
+                                                                     Maximum="100"
+                                                                     Value="{Binding QuotaRemainingValue, Mode=OneWay}" />
+
+                                                        <Grid Grid.Row="7" Margin="0,14,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="28" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <iconPacks:PackIconMaterial Width="19"
+                                                                                        Height="19"
+                                                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                                                        Kind="CalendarOutline" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
+                                                                       Text="重置时间" />
+                                                            <TextBlock Grid.Column="2"
+                                                                       Margin="14,0,0,0"
+                                                                       HorizontalAlignment="Right"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
+                                                                       Text="{Binding QuotaResetValueText}" />
+                                                        </Grid>
+
+                                                        <Grid Grid.Row="8" Margin="0,10,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="28" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <iconPacks:PackIconMaterial Width="19"
+                                                                                        Height="19"
+                                                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                                                        Kind="ClockOutline" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Top"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
+                                                                       Text="更新时间" />
+                                                            <StackPanel Grid.Column="2"
+                                                                        Margin="14,0,0,0"
+                                                                        HorizontalAlignment="Right">
+                                                                <TextBlock HorizontalAlignment="Right"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                            FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
+                                                                            Text="{Binding QuotaUpdatedValueText}" />
+                                                                <TextBlock Margin="0,2,0,0"
+                                                                           HorizontalAlignment="Right"
+                                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                                            FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                                            Text="{Binding QuotaStatusText}" />
+                                                            </StackPanel>
+                                                        </Grid>
+
+                                                        <Border Grid.Row="10"
+                                                                Height="1"
+                                                                Margin="0,9,0,0"
+                                                                Background="{StaticResource BorderSubtleBrush}" />
+
+                                                        <UniformGrid Grid.Row="11"
+                                                                     Margin="-6,5,-6,-2"
+                                                                     Columns="4">
+                                                            <Grid>
+                                                                <Button Command="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="切换到此账号">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button"
+                                                                               BasedOn="{StaticResource ResponsiveCardActionButtonStyle}">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Visible" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsActive}"
+                                                                                             Value="True">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Border Width="28"
+                                                                                Height="28"
+                                                                                Margin="0,0,6,0"
+                                                                                Background="#353638"
+                                                                                CornerRadius="14">
+                                                                            <iconPacks:PackIconMaterial Width="16"
+                                                                                                        Height="16"
+                                                                                                        HorizontalAlignment="Center"
+                                                                                                        VerticalAlignment="Center"
+                                                                                                        Kind="SwapHorizontal" />
+                                                                        </Border>
+                                                                        <TextBlock VerticalAlignment="Center"
+                                                                                   Text="切换" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                                <Button IsEnabled="False"
+                                                                        ToolTip="当前登录账号">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button"
+                                                                               BasedOn="{StaticResource ResponsiveCardActionButtonStyle}">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsActive}"
+                                                                                             Value="True">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Border Width="28"
+                                                                                Height="28"
+                                                                                Margin="0,0,6,0"
+                                                                                Background="#626366"
+                                                                                CornerRadius="14">
+                                                                            <iconPacks:PackIconMaterial Width="16"
+                                                                                                        Height="16"
+                                                                                                        HorizontalAlignment="Center"
+                                                                                                        VerticalAlignment="Center"
+                                                                                                        Kind="Check" />
+                                                                        </Border>
+                                                                        <TextBlock VerticalAlignment="Center"
+                                                                                   Text="当前" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                            </Grid>
+
+                                                            <Button Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource ResponsiveCardActionButtonStyle}"
+                                                                    ToolTip="刷新额度与会员信息">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Border Width="28"
+                                                                            Height="28"
+                                                                            Margin="0,0,6,0"
+                                                                            Background="#353638"
+                                                                            CornerRadius="14">
+                                                                        <iconPacks:PackIconMaterial Width="16"
+                                                                                                    Height="16"
+                                                                                                    HorizontalAlignment="Center"
+                                                                                                    VerticalAlignment="Center"
+                                                                                                    Kind="Refresh" />
+                                                                    </Border>
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               Text="刷新" />
+                                                                </StackPanel>
+                                                            </Button>
+
+                                                            <Button Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource ResponsiveCardActionButtonStyle}"
+                                                                    ToolTip="编辑昵称">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Border Width="28"
+                                                                            Height="28"
+                                                                            Margin="0,0,6,0"
+                                                                            Background="#353638"
+                                                                            CornerRadius="14">
+                                                                        <iconPacks:PackIconMaterial Width="16"
+                                                                                                    Height="16"
+                                                                                                    HorizontalAlignment="Center"
+                                                                                                    VerticalAlignment="Center"
+                                                                                                    Kind="PencilOutline" />
+                                                                    </Border>
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               Text="编辑" />
+                                                                </StackPanel>
+                                                            </Button>
+
+                                                            <Button Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Foreground="{StaticResource DangerBrush}"
+                                                                    IsEnabled="{Binding CanDelete}"
+                                                                    Style="{StaticResource ResponsiveCardActionButtonStyle}"
+                                                                    ToolTip="删除本地加密档案">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Border Width="28"
+                                                                            Height="28"
+                                                                            Margin="0,0,6,0"
+                                                                            Background="#3A3032"
+                                                                            CornerRadius="14">
+                                                                        <iconPacks:PackIconMaterial Width="16"
+                                                                                                    Height="16"
+                                                                                                    HorizontalAlignment="Center"
+                                                                                                    VerticalAlignment="Center"
+                                                                                                    Kind="DeleteOutline" />
+                                                                    </Border>
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                               Text="删除" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </UniformGrid>
+                                                    </Grid>
                                                 </Border>
-                                            </StackPanel>
-                                            <TextBlock Margin="0,5,0,0"
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Border MinHeight="360"
+                                            Margin="10"
+                                            Padding="50"
+                                            Background="{StaticResource SurfaceBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="18">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Accounts.Count}"
+                                                                 Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                            <Border Width="64"
+                                                    Height="64"
+                                                    HorizontalAlignment="Center"
+                                                    Background="{StaticResource SurfaceRaisedBrush}"
+                                                    CornerRadius="32">
+                                                <iconPacks:PackIconMaterial Width="30"
+                                                                            Height="30"
+                                                                            HorizontalAlignment="Center"
+                                                                            VerticalAlignment="Center"
+                                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                                            Kind="AccountPlusOutline" />
+                                            </Border>
+                                             <TextBlock Margin="0,20,0,0"
+                                                        HorizontalAlignment="Center"
+                                                        FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='19,22'}"
+                                                        FontWeight="SemiBold"
+                                                        Text="还没有账号" />
+                                            <TextBlock Margin="0,9,0,24"
+                                                       HorizontalAlignment="Center"
                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="{Binding Email}" />
+                                                       Text="通过官方 OAuth 添加账号，或前往设置导入当前登录账号。" />
+                                             <Button Command="{Binding AddAccountCommand}"
+                                                     Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <iconPacks:PackIconMaterial Width="20"
+                                                                                Height="20"
+                                                                                Margin="0,0,8,0"
+                                                                                Kind="Plus" />
+                                                    <TextBlock Text="添加第一个账号" />
+                                                </StackPanel>
+                                            </Button>
                                         </StackPanel>
-                                        <TextBlock Grid.Column="1"
-                                                   FontSize="30"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource AccentBrush}"
-                                                   Text="{Binding QuotaRemainingText}" />
-                                    </Grid>
-
-                                    <Grid Grid.Row="1" Margin="0,18,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Margin="0,0,7,0"
-                                                Padding="12,9"
-                                                Background="{StaticResource SurfaceRaisedBrush}"
-                                                CornerRadius="8">
-                                            <StackPanel>
-                                                <TextBlock FontSize="11"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           Text="会员状态" />
-                                                <TextBlock Margin="0,3,0,0"
-                                                           FontWeight="SemiBold"
-                                                           Text="{Binding PlanDisplayName}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Column="1"
-                                                Margin="7,0,0,0"
-                                                Padding="12,9"
-                                                Background="{StaticResource SurfaceRaisedBrush}"
-                                                CornerRadius="8">
-                                            <StackPanel>
-                                                <TextBlock FontSize="11"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           Text="账号归属" />
-                                                <TextBlock Margin="0,3,0,0"
-                                                           FontWeight="SemiBold"
-                                                           Text="{Binding OwnershipDisplayName}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           ToolTip="{Binding OwnershipDisplayName}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <StackPanel Grid.Row="2" Margin="0,18,0,0">
-                                        <Grid>
-                                            <TextBlock FontWeight="SemiBold" Text="周限额剩余" />
-                                            <TextBlock HorizontalAlignment="Right"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="{Binding QuotaStatusText}" />
-                                        </Grid>
-                                        <ProgressBar Margin="0,9,0,0"
-                                                     Maximum="100"
-                                                     Value="{Binding QuotaRemainingValue}" />
-                                        <Grid Margin="0,8,0,0">
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
-                                                       FontSize="12"
-                                                       Text="{Binding QuotaResetText}" />
-                                            <TextBlock HorizontalAlignment="Right"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       FontSize="12"
-                                                       Text="{Binding QuotaUpdatedText}" />
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Row="4"
-                                                Margin="0,22,0,0"
-                                                Orientation="Horizontal">
-                                        <Button Margin="0,0,8,0"
-                                                Command="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"
-                                                Content="切换" />
-                                        <Button Margin="0,0,8,0"
-                                                Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"
-                                                Content="刷新" />
-                                        <Button Margin="0,0,8,0"
-                                                Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"
-                                                Content="编辑昵称" />
-                                        <Button Background="#39242A"
-                                                BorderBrush="#61313C"
-                                                Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"
-                                                Foreground="{StaticResource DangerBrush}"
-                                                IsEnabled="{Binding CanDelete}"
-                                                Content="删除" />
-                                    </StackPanel>
+                                    </Border>
                                 </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
 
-                <Border Padding="50"
-                        Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="14">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Accounts.Count}" Value="0">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock HorizontalAlignment="Center"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Text="还没有账号" />
-                        <TextBlock Margin="0,8,0,20"
+                    <Grid x:Name="SettingsPage">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSettingsPage}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+
+                        <Grid Margin="18,42,32,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='25,29'}"
+                                           FontWeight="SemiBold"
+                                           Text="设置" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                           Text="管理额度刷新频率和窗口行为" />
+                            </StackPanel>
+
+                            <ScrollViewer Grid.Row="1"
+                                          Margin="0,36,0,0"
+                                          HorizontalContentAlignment="Stretch"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <StackPanel Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource ViewportContentWidthConverter}, ConverterParameter=18}"
+                                            MaxWidth="1400"
+                                            HorizontalAlignment="Left">
+                                    <Border Padding="26"
+                                            Background="{StaticResource SurfaceBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="20"
+                                            Effect="{StaticResource CardShadow}">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Width="44"
+                                                        Height="44"
+                                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                                        CornerRadius="22">
+                                                    <iconPacks:PackIconMaterial Width="21"
+                                                                                Height="21"
+                                                                                HorizontalAlignment="Center"
+                                                                                VerticalAlignment="Center"
+                                                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                                                Kind="Refresh" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                                                    <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='15,17'}"
+                                                               FontWeight="SemiBold"
+                                                               Text="额度自动刷新" />
+                                                    <TextBlock Margin="0,5,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                                               Text="按所选周期串行刷新所有已保存账号" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,15'}"
+                                                           FontWeight="SemiBold">
+                                                    <Run Text="{Binding QuotaRefreshMinutes}" />
+                                                    <Run Text=" 分钟" />
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <Slider Margin="4,24,4,0"
+                                                    Minimum="5"
+                                                    Maximum="120"
+                                                    TickFrequency="5"
+                                                    IsSnapToTickEnabled="True"
+                                                    Value="{Binding QuotaRefreshMinutes}" />
+                                            <Grid Margin="4,8,4,0">
+                                                <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                           Text="5 分钟" />
+                                                <TextBlock HorizontalAlignment="Right"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                           Text="120 分钟" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Margin="0,16,0,0"
+                                            Padding="26"
+                                            Background="{StaticResource SurfaceBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="20"
+                                            Effect="{StaticResource CardShadow}">
+                                        <StackPanel>
+                                            <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='15,17'}"
+                                                       FontWeight="SemiBold"
+                                                       Text="窗口行为" />
+                                            <TextBlock Margin="0,6,0,24"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                                       Text="控制主窗口关闭和启动时的显示方式" />
+
+                                            <CheckBox IsChecked="{Binding CloseToTray}"
+                                                      Style="{StaticResource ToggleSwitchStyle}">
+                                                <StackPanel>
+                                                    <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,15'}"
+                                                               Text="关闭窗口时最小化到托盘" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                               Text="托盘菜单仍可切换账号和重新打开窗口" />
+                                                </StackPanel>
+                                            </CheckBox>
+
+                                            <Border Height="1"
+                                                    Margin="0,24"
+                                                    Background="{StaticResource BorderSubtleBrush}" />
+
+                                            <CheckBox IsChecked="{Binding StartMinimized}"
+                                                      Style="{StaticResource ToggleSwitchStyle}">
+                                                <StackPanel>
+                                                    <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,15'}"
+                                                               Text="启动后直接进入托盘" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                               Text="下次启动应用时生效" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Margin="0,16,0,0"
+                                            Padding="26"
+                                            Background="{StaticResource SurfaceBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="20"
+                                            Effect="{StaticResource CardShadow}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='15,17'}"
+                                                           FontWeight="SemiBold"
+                                                           Text="导入当前账号" />
+                                                <TextBlock Margin="0,6,0,0"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
+                                                           Text="将 ChatGPT 当前登录态安全保存为加密账号档案" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Margin="24,0,0,0"
+                                                    Command="{Binding ImportCurrentCommand}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <iconPacks:PackIconMaterial Width="20"
+                                                                                Height="20"
+                                                                                Margin="0,0,8,0"
+                                                                                Kind="AccountArrowDownOutline" />
+                                                    <TextBlock Text="导入当前账号" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid Margin="2,22,2,30">
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                   Text="GPT Account Manager v1.1.1 · 本地优先 · 无遥测" />
+                                        <Button HorizontalAlignment="Right"
+                                                Command="{Binding SaveSettingsCommand}"
+                                                Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <iconPacks:PackIconMaterial Width="20"
+                                                                            Height="20"
+                                                                            Margin="0,0,8,0"
+                                                                            Kind="ContentSaveOutline" />
+                                                <TextBlock Text="保存设置" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Grid>
+
+            <Border x:Name="FooterFrame"
+                    Grid.Row="2"
+                    Background="{StaticResource BackgroundBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,13,13">
+                <Grid Margin="30,0">
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <iconPacks:PackIconMaterial Width="20"
+                                                    Height="20"
+                                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                                    Kind="ShieldCheckOutline" />
+                        <TextBlock Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="导入 ChatGPT 当前账号，或通过官方 OAuth 添加新账号。" />
-                        <Button HorizontalAlignment="Center"
-                                Background="{StaticResource AccentBrush}"
-                                BorderBrush="{StaticResource AccentBrush}"
-                                Command="{Binding AddAccountCommand}"
-                                Foreground="#10201C"
-                                Content="添加第一个账号" />
+                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='11.5,13'}"
+                                   Text="所有凭据仅保存在此设备上" />
                     </StackPanel>
-                </Border>
-            </Grid>
-        </ScrollViewer>
 
-        <Border Grid.Row="2"
-                Padding="28,12"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,1,0,0">
-            <Grid>
-                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
-                           Text="{Binding StatusMessage}" />
-                <ProgressBar Width="110"
-                             Height="4"
-                             HorizontalAlignment="Right"
-                             IsIndeterminate="True">
-                    <ProgressBar.Style>
-                        <Style TargetType="ProgressBar">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ProgressBar.Style>
-                </ProgressBar>
-            </Grid>
-        </Border>
-    </Grid>
+                    <StackPanel HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <ProgressBar Width="80"
+                                     Height="4"
+                                     Margin="0,0,12,0"
+                                     IsIndeterminate="True">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar"
+                                       BasedOn="{StaticResource RoundedProgressBarStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
+                        <TextBlock MaxWidth="560"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='11,12.5'}"
+                                   Text="{Binding StatusMessage}"
+                                   ToolTip="{Binding StatusMessage}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
 </Window>

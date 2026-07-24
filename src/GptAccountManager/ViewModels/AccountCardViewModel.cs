@@ -15,6 +15,8 @@ public sealed class AccountCardViewModel
     public string Email => Profile.Email;
     public bool IsActive => Profile.IsActive;
     public bool CanDelete => !Profile.IsActive;
+    public bool IsOrganization =>
+        Profile.Ownership.Kind == AccountOwnershipKind.Organization;
     public string PlanDisplayName => Profile.PlanDisplayName;
     public string OwnershipDisplayName => Profile.OwnershipDisplayName;
 
@@ -31,10 +33,20 @@ public sealed class AccountCardViewModel
             ? $"重置：{reset.ToLocalTime():M月d日 HH:mm}"
             : "重置时间暂不可用";
 
+    public string QuotaResetValueText =>
+        Profile.Quota?.ResetsAt is { } reset
+            ? $"{reset.ToLocalTime():M月d日 HH:mm}"
+            : "暂不可用";
+
     public string QuotaUpdatedText =>
         Profile.Quota is { } quota
             ? $"更新：{quota.FetchedAt.ToLocalTime():M月d日 HH:mm}"
             : "尚未获取额度";
+
+    public string QuotaUpdatedValueText =>
+        Profile.Quota is { } quota
+            ? $"{quota.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
+            : "尚未获取";
 
     public string QuotaStatusText => Profile.Quota?.Status switch
     {

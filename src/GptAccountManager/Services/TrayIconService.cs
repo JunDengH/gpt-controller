@@ -8,6 +8,7 @@ namespace GptAccountManager.Services;
 public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly Icon _applicationIcon;
     private readonly Action _showWindow;
     private readonly Action _exit;
     private readonly Func<Guid, Task> _switchAccount;
@@ -21,9 +22,10 @@ public sealed class TrayIconService : IDisposable
         _showWindow = showWindow;
         _exit = exit;
         _switchAccount = switchAccount;
+        _applicationIcon = LoadApplicationIcon();
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _applicationIcon,
             Text = "GPT Account Manager",
             Visible = true
         };
@@ -92,5 +94,27 @@ public sealed class TrayIconService : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.ContextMenuStrip?.Dispose();
         _notifyIcon.Dispose();
+        _applicationIcon.Dispose();
+    }
+
+    private static Icon LoadApplicationIcon()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(Environment.ProcessPath))
+            {
+                var extracted = Icon.ExtractAssociatedIcon(Environment.ProcessPath);
+                if (extracted is not null)
+                {
+                    return extracted;
+                }
+            }
+        }
+        catch
+        {
+            // Fall through to a cloned system icon when extraction is unavailable.
+        }
+
+        return (Icon)SystemIcons.Application.Clone();
     }
 }

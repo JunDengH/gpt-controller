@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.1"
+  #define MyAppVersion "1.1.1"
 #endif
 
 #define MyAppName "GPT Account Manager"
@@ -18,7 +18,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputDir=Output
+OutputDir=..\artifacts
 OutputBaseFilename=GptAccountManager-{#MyAppVersion}-win-x64-setup
 Compression=lzma2
 SolidCompression=yes

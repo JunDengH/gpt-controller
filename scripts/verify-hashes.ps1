@@ -1,5 +1,5 @@
 param(
-    [string[]]$Roots = @("artifacts", "installer\Output")
+    [string[]]$Roots = @("artifacts")
 )
 
 $ErrorActionPreference = "Stop"

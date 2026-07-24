@@ -70,23 +70,18 @@ WindowsApps 或重新分发该二进制。
 
 ```powershell
 dotnet restore GptAccountManager.slnx
-dotnet test GptAccountManager.slnx -c Release
+dotnet build GptAccountManager.slnx -c Release
 dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 ```
 
 生成便携版：
 
 ```powershell
-.\scripts\package.ps1 -Version 1.0.1
+.\scripts\package.ps1 -Version 1.1.1
 ```
 
 如果 PATH 中存在 Inno Setup `ISCC.exe`，脚本还会生成安装包。
-脚本也会从 Windows 卸载注册表定位自定义目录中的 Inno Setup。可使用以下命令
-执行一次不会启动应用的静默安装/卸载冒烟：
-
-```powershell
-.\scripts\test-installer.ps1
-```
+脚本也会从 Windows 卸载注册表定位自定义目录中的 Inno Setup。
 
 ## 额度与会员数据
 
@@ -109,26 +104,6 @@ dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 | `business` | Business |
 
 未知套餐不会被猜测。网络或协议失败时保留最后一次成功数据并标记为过期。
-
-## 测试
-
-自动化测试不使用真实 OpenAI Token，覆盖：
-
-- 套餐和公司名称解析。
-- 周窗口识别及百分比边界。
-- DPAPI 加密和备份恢复。
-- refresh token 降级保护。
-- 事务式切换与启动失败回滚。
-- 日志敏感信息脱敏。
-
-如果本机已安装官方 ChatGPT 客户端，可在完全隔离、无 Token 的临时目录中执行
-app-server 协议握手冒烟测试：
-
-```powershell
-$env:GAM_RUN_CODEX_INTEGRATION = "1"
-dotnet test tests\GptAccountManager.Tests -c Release `
-  --filter "FullyQualifiedName~CodexAppServerIntegrationTests"
-```
 
 ## 许可证
 

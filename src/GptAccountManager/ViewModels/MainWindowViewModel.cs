@@ -18,9 +18,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly SwitchCoordinator _switchCoordinator;
     private readonly IChatGptProcessController _processController;
     private readonly DialogService _dialogs;
+    private readonly bool _isUiPreview;
     private readonly DispatcherTimer _quotaTimer = new();
     private AppSettings _settings = new();
     private bool _isBusy;
+    private bool _isSettingsPage;
+    private int _quotaRefreshMinutes = 15;
+    private bool _closeToTray = true;
+    private bool _startMinimized;
     private string _statusMessage = "准备就绪";
     private bool _disposed;
 
@@ -33,7 +38,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         QuotaService quotaService,
         SwitchCoordinator switchCoordinator,
         IChatGptProcessController processController,
-        DialogService dialogs)
+        DialogService dialogs,
+        bool isUiPreview = false)
     {
         _vault = vault;
         _settingsService = settingsService;
@@ -44,10 +50,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _switchCoordinator = switchCoordinator;
         _processController = processController;
         _dialogs = dialogs;
+        _isUiPreview = isUiPreview;
 
         AddAccountCommand = new AsyncRelayCommand(AddAccountAsync, () => !IsBusy);
         ImportCurrentCommand = new AsyncRelayCommand(ImportCurrentAsync, () => !IsBusy);
         RefreshAllCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
+        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => !IsBusy);
+        ShowAccountsCommand = new RelayCommand(ShowAccountsPage);
+        ShowSettingsCommand = new RelayCommand(ShowSettingsPage);
         SwitchAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             SwitchAccountAsync,
             _ => !IsBusy);
@@ -75,12 +85,37 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public AsyncRelayCommand AddAccountCommand { get; }
     public AsyncRelayCommand ImportCurrentCommand { get; }
     public AsyncRelayCommand RefreshAllCommand { get; }
+    public AsyncRelayCommand SaveSettingsCommand { get; }
+    public RelayCommand ShowAccountsCommand { get; }
+    public RelayCommand ShowSettingsCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> SwitchAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> RefreshAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> RenameAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> DeleteAccountCommand { get; }
 
     public event EventHandler? AccountsChanged;
+
+    public bool IsAccountsPage => !_isSettingsPage;
+
+    public bool IsSettingsPage => _isSettingsPage;
+
+    public int QuotaRefreshMinutes
+    {
+        get => _quotaRefreshMinutes;
+        set => SetProperty(ref _quotaRefreshMinutes, Math.Clamp(value, 5, 120));
+    }
+
+    public bool CloseToTray
+    {
+        get => _closeToTray;
+        set => SetProperty(ref _closeToTray, value);
+    }
+
+    public bool StartMinimized
+    {
+        get => _startMinimized;
+        set => SetProperty(ref _startMinimized, value);
+    }
 
     public bool IsBusy
     {
@@ -103,8 +138,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public async Task InitializeAsync()
     {
         _settings = await _settingsService.LoadAsync();
+        QuotaRefreshMinutes = _settings.QuotaRefreshMinutes;
+        CloseToTray = _settings.CloseToTray;
+        StartMinimized = _settings.StartMinimized;
         _quotaTimer.Interval = TimeSpan.FromMinutes(
-            Math.Clamp(_settings.QuotaRefreshMinutes, 5, 120));
+            QuotaRefreshMinutes);
+
+        if (_isUiPreview)
+        {
+            LoadUiPreviewAccounts();
+            StatusMessage = "界面预览模式 · 账号操作不会写入本地数据";
+            return;
+        }
 
         IsBusy = true;
         try
@@ -154,6 +199,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task AddAccountAsync()
     {
+        if (_isUiPreview)
+        {
+            StatusMessage = "界面预览模式不会启动 OAuth";
+            return;
+        }
+
         if (!await EnsureFileStoreAsync())
         {
             return;
@@ -184,6 +235,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task ImportCurrentAsync()
     {
+        if (_isUiPreview)
+        {
+            StatusMessage = "界面预览模式不会导入真实登录态";
+            return;
+        }
+
         if (!await EnsureFileStoreAsync())
         {
             return;
@@ -218,6 +275,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RefreshAllAsync(bool silent)
     {
+        if (_isUiPreview)
+        {
+            LoadUiPreviewAccounts();
+            StatusMessage = "预览数据已刷新";
+            return;
+        }
+
         if (Accounts.Count == 0)
         {
             return;
@@ -251,6 +315,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RefreshAccountAsync(AccountCardViewModel account)
     {
+        if (_isUiPreview)
+        {
+            StatusMessage = $"{account.Nickname} 的预览数据已刷新";
+            return;
+        }
+
         IsBusy = true;
         try
         {
@@ -275,6 +345,25 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (account.IsActive)
         {
             StatusMessage = $"{account.Nickname} 已经是当前账号";
+            return;
+        }
+
+        if (_isUiPreview)
+        {
+            var profiles = Accounts
+                .Select(item => item.Profile with { IsActive = item.Id == account.Id })
+                .OrderByDescending(item => item.IsActive)
+                .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+            Accounts.Clear();
+            foreach (var profile in profiles)
+            {
+                Accounts.Add(new AccountCardViewModel(profile));
+            }
+
+            OnPropertyChanged(nameof(Accounts));
+            AccountsChanged?.Invoke(this, EventArgs.Empty);
+            StatusMessage = $"预览：已切换到 {account.Nickname}";
             return;
         }
 
@@ -317,6 +406,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RenameAccountAsync(AccountCardViewModel account)
     {
+        if (_isUiPreview)
+        {
+            StatusMessage = "界面预览模式不会修改账号昵称";
+            return;
+        }
+
         var nickname = _dialogs.Prompt("编辑昵称", "账号昵称", account.Nickname);
         if (string.IsNullOrWhiteSpace(nickname) || nickname == account.Nickname)
         {
@@ -336,6 +431,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task DeleteAccountAsync(AccountCardViewModel account)
     {
+        if (_isUiPreview)
+        {
+            StatusMessage = "界面预览模式不会删除账号";
+            return;
+        }
+
         if (account.IsActive)
         {
             _dialogs.Info("无法删除", "请先切换到其他账号，再删除当前账号。");
@@ -374,6 +475,128 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    private void ShowAccountsPage()
+    {
+        if (!_isSettingsPage)
+        {
+            return;
+        }
+
+        _isSettingsPage = false;
+        OnPropertyChanged(nameof(IsAccountsPage));
+        OnPropertyChanged(nameof(IsSettingsPage));
+    }
+
+    private void ShowSettingsPage()
+    {
+        if (_isSettingsPage)
+        {
+            return;
+        }
+
+        _isSettingsPage = true;
+        OnPropertyChanged(nameof(IsAccountsPage));
+        OnPropertyChanged(nameof(IsSettingsPage));
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        _settings = new AppSettings
+        {
+            QuotaRefreshMinutes = QuotaRefreshMinutes,
+            CloseToTray = CloseToTray,
+            StartMinimized = StartMinimized
+        };
+        _quotaTimer.Interval = TimeSpan.FromMinutes(QuotaRefreshMinutes);
+
+        if (!_isUiPreview)
+        {
+            await _settingsService.SaveAsync(_settings);
+        }
+
+        StatusMessage = _isUiPreview
+            ? "预览设置已应用，本地文件未更改"
+            : "设置已保存";
+    }
+
+    private void LoadUiPreviewAccounts()
+    {
+        var now = DateTimeOffset.Now;
+        var reset = new DateTimeOffset(
+            now.Year,
+            now.Month,
+            now.Day,
+            9,
+            0,
+            0,
+            now.Offset).AddDays(4);
+        var profiles = new[]
+        {
+            new AccountProfile
+            {
+                Nickname = "主账号",
+                Email = "user@example.com",
+                AccountId = "preview-primary",
+                IsActive = true,
+                MembershipPlan = MembershipPlan.Pro20x,
+                Ownership = AccountOwnership.Personal,
+                Quota = CreatePreviewQuota(72, now, reset, QuotaStatus.Fresh)
+            },
+            new AccountProfile
+            {
+                Nickname = "工作账号",
+                Email = "team@example.cn",
+                AccountId = "preview-business",
+                MembershipPlan = MembershipPlan.Business,
+                Ownership = AccountOwnership.Organization(
+                    "preview-organization",
+                    "示例科技"),
+                Quota = CreatePreviewQuota(
+                    41,
+                    now.AddHours(-5),
+                    reset,
+                    QuotaStatus.Stale)
+            },
+            new AccountProfile
+            {
+                Nickname = "备用账号",
+                Email = "backup@example.com",
+                AccountId = "preview-backup",
+                MembershipPlan = MembershipPlan.Plus,
+                Ownership = AccountOwnership.Personal,
+                Quota = CreatePreviewQuota(
+                    89,
+                    now.AddHours(-15),
+                    reset,
+                    QuotaStatus.Fresh)
+            }
+        };
+
+        Accounts.Clear();
+        foreach (var profile in profiles)
+        {
+            Accounts.Add(new AccountCardViewModel(profile));
+        }
+
+        OnPropertyChanged(nameof(Accounts));
+        AccountsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static QuotaSnapshot CreatePreviewQuota(
+        double remainingPercent,
+        DateTimeOffset fetchedAt,
+        DateTimeOffset resetsAt,
+        QuotaStatus status) =>
+        new()
+        {
+            RemainingPercent = remainingPercent,
+            UsedPercent = 100 - remainingPercent,
+            WindowDurationMinutes = 10_080,
+            ResetsAt = resetsAt,
+            FetchedAt = fetchedAt,
+            Status = status
+        };
+
     private async Task ReloadAccountsAsync()
     {
         var profiles = await _vault.LoadProfilesAsync();
@@ -407,6 +630,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         AddAccountCommand.NotifyCanExecuteChanged();
         ImportCurrentCommand.NotifyCanExecuteChanged();
         RefreshAllCommand.NotifyCanExecuteChanged();
+        SaveSettingsCommand.NotifyCanExecuteChanged();
         SwitchAccountCommand.NotifyCanExecuteChanged();
         RefreshAccountCommand.NotifyCanExecuteChanged();
         RenameAccountCommand.NotifyCanExecuteChanged();
