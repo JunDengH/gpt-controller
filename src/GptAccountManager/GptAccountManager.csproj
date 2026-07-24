@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>GptAccountManager</AssemblyName>
+    <RootNamespace>GptAccountManager</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>GPT Account Manager contributors</Authors>
+    <Description>Local-first account switcher and quota monitor for the ChatGPT Windows app.</Description>
+  </PropertyGroup>
+
+</Project>

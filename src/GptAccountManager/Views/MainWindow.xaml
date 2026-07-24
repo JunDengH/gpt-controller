@@ -1,0 +1,275 @@
+<Window x:Class="GptAccountManager.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="GPT Account Manager"
+        Width="1120"
+        Height="760"
+        MinWidth="820"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="28,22"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock FontSize="26"
+                               FontWeight="SemiBold"
+                               Text="GPT Account Manager" />
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="13"
+                               Text="本地加密保存 · 官方 OAuth · 事务式账号切换" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Margin="0,0,10,0"
+                            Command="{Binding ImportCurrentCommand}"
+                            Content="导入当前账号" />
+                    <Button Margin="0,0,10,0"
+                            Command="{Binding RefreshAllCommand}"
+                            Content="刷新全部" />
+                    <Button Background="{StaticResource AccentBrush}"
+                            BorderBrush="{StaticResource AccentBrush}"
+                            Command="{Binding AddAccountCommand}"
+                            Foreground="#10201C"
+                            Content="添加账号" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1"
+                      Padding="28"
+                      VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <ItemsControl ItemsSource="{Binding Accounts}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="500"
+                                    MinHeight="270"
+                                    Margin="0,0,18,18"
+                                    Padding="22"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontSize="19"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding Nickname}" />
+                                                <Border x:Name="ActiveBadge"
+                                                        Margin="10,0,0,0"
+                                                        Padding="8,3"
+                                                        Background="#23584D"
+                                                        CornerRadius="10">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontSize="11"
+                                                               Foreground="{StaticResource AccentBrush}"
+                                                               Text="当前账号" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Margin="0,5,0,0"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Text="{Binding Email}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1"
+                                                   FontSize="30"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   Text="{Binding QuotaRemainingText}" />
+                                    </Grid>
+
+                                    <Grid Grid.Row="1" Margin="0,18,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Margin="0,0,7,0"
+                                                Padding="12,9"
+                                                Background="{StaticResource SurfaceRaisedBrush}"
+                                                CornerRadius="8">
+                                            <StackPanel>
+                                                <TextBlock FontSize="11"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Text="会员状态" />
+                                                <TextBlock Margin="0,3,0,0"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding PlanDisplayName}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="1"
+                                                Margin="7,0,0,0"
+                                                Padding="12,9"
+                                                Background="{StaticResource SurfaceRaisedBrush}"
+                                                CornerRadius="8">
+                                            <StackPanel>
+                                                <TextBlock FontSize="11"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Text="账号归属" />
+                                                <TextBlock Margin="0,3,0,0"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding OwnershipDisplayName}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding OwnershipDisplayName}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <StackPanel Grid.Row="2" Margin="0,18,0,0">
+                                        <Grid>
+                                            <TextBlock FontWeight="SemiBold" Text="周限额剩余" />
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Text="{Binding QuotaStatusText}" />
+                                        </Grid>
+                                        <ProgressBar Margin="0,9,0,0"
+                                                     Maximum="100"
+                                                     Value="{Binding QuotaRemainingValue}" />
+                                        <Grid Margin="0,8,0,0">
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontSize="12"
+                                                       Text="{Binding QuotaResetText}" />
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontSize="12"
+                                                       Text="{Binding QuotaUpdatedText}" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="4"
+                                                Margin="0,22,0,0"
+                                                Orientation="Horizontal">
+                                        <Button Margin="0,0,8,0"
+                                                Command="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Content="切换" />
+                                        <Button Margin="0,0,8,0"
+                                                Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Content="刷新" />
+                                        <Button Margin="0,0,8,0"
+                                                Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Content="编辑昵称" />
+                                        <Button Background="#39242A"
+                                                BorderBrush="#61313C"
+                                                Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Foreground="{StaticResource DangerBrush}"
+                                                IsEnabled="{Binding CanDelete}"
+                                                Content="删除" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Padding="50"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="14">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Accounts.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Center"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Text="还没有账号" />
+                        <TextBlock Margin="0,8,0,20"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="导入 ChatGPT 当前账号，或通过官方 OAuth 添加新账号。" />
+                        <Button HorizontalAlignment="Center"
+                                Background="{StaticResource AccentBrush}"
+                                BorderBrush="{StaticResource AccentBrush}"
+                                Command="{Binding AddAccountCommand}"
+                                Foreground="#10201C"
+                                Content="添加第一个账号" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <Border Grid.Row="2"
+                Padding="28,12"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="{Binding StatusMessage}" />
+                <ProgressBar Width="110"
+                             Height="4"
+                             HorizontalAlignment="Right"
+                             IsIndeterminate="True">
+                    <ProgressBar.Style>
+                        <Style TargetType="ProgressBar">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ProgressBar.Style>
+                </ProgressBar>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

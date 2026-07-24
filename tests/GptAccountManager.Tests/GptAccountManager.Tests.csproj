@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.10.4" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.10.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GptAccountManager\GptAccountManager.csproj" />
+    <ProjectReference
+      Include="..\FakeCodexAppServer\FakeCodexAppServer.csproj"
+      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyFakeCodexAppServer" AfterTargets="Build">
+    <ItemGroup>
+      <FakeCodexAppServerFiles
+        Include="..\FakeCodexAppServer\bin\$(Configuration)\net10.0\FakeCodexAppServer.*" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutDir)fake-app-server" />
+    <Copy
+      SourceFiles="@(FakeCodexAppServerFiles)"
+      DestinationFolder="$(OutDir)fake-app-server" />
+  </Target>
+</Project>

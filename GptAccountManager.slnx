@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/GptAccountManager/GptAccountManager.csproj" />
+  <Project Path="tests/FakeCodexAppServer/FakeCodexAppServer.csproj" />
+  <Project Path="tests/GptAccountManager.Tests/GptAccountManager.Tests.csproj" />
+</Solution>

@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore GptAccountManager.slnx
+
+      - name: Build
+        run: dotnet build GptAccountManager.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test GptAccountManager.slnx -c Release --no-build --logger "trx;LogFileName=tests.trx"
+
+      - name: Package portable build
+        shell: pwsh
+        run: ./scripts/package.ps1 -Version "0.0.0-ci"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=0.0.0-ci" `
+            "installer\GptAccountManager.iss"
+          $installer = Get-ChildItem "installer\Output\*.exe" | Select-Object -First 1
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content "$($installer.FullName).sha256" "$hash  $($installer.Name)" -Encoding ascii
+
+      - name: Verify release hashes
+        shell: pwsh
+        run: ./scripts/verify-hashes.ps1
+
+      - name: Smoke test installer
+        shell: pwsh
+        run: ./scripts/test-installer.ps1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/TestResults/*.trx"
+
+      - name: Upload packaged builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+            installer/Output/*.exe
+            installer/Output/*.sha256
