@@ -37,6 +37,7 @@ public sealed class QuotaService
     }
 
     public async Task<IReadOnlyList<AccountProfile>> RefreshAllAsync(
+        bool skipAuthenticationRequired = false,
         CancellationToken cancellationToken = default)
     {
         var profiles = await _vault.LoadProfilesAsync(cancellationToken);
@@ -44,6 +45,12 @@ public sealed class QuotaService
         foreach (var profile in profiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (skipAuthenticationRequired &&
+                profile.Quota?.Status == QuotaStatus.AuthenticationRequired)
+            {
+                continue;
+            }
+
             refreshed.Add(await RefreshAsync(profile.Id, cancellationToken));
         }
 

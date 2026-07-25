@@ -75,7 +75,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (!IsBusy)
             {
-                await RefreshAllAsync(silent: true);
+                await RefreshAllAsync(
+                    silent: true,
+                    skipAuthenticationRequired: true);
             }
         };
     }
@@ -171,9 +173,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 await ImportCurrentCoreAsync();
             }
 
-            if (Accounts.Count > 0)
+            if (!recovered)
             {
-                await RefreshAllAsync(silent: true);
+                StatusMessage = Accounts.Count > 0
+                    ? "已加载账号数据"
+                    : "准备就绪";
             }
         }
         catch (Exception exception)
@@ -185,15 +189,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             IsBusy = false;
             _quotaTimer.Start();
-        }
-    }
-
-    public async Task SwitchFromTrayAsync(Guid accountId)
-    {
-        var account = Accounts.FirstOrDefault(item => item.Id == accountId);
-        if (account is not null)
-        {
-            await SwitchAccountAsync(account);
         }
     }
 
@@ -250,7 +245,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await ImportCurrentCoreAsync();
-            await RefreshAllAsync(silent: true);
+            await RefreshAllAsync(
+                silent: true,
+                skipAuthenticationRequired: false);
         }
         catch (Exception exception)
         {
@@ -271,9 +268,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         await ReloadAccountsAsync();
     }
 
-    private Task RefreshAllAsync() => RefreshAllAsync(silent: false);
+    private Task RefreshAllAsync() => RefreshAllAsync(
+        silent: false,
+        skipAuthenticationRequired: false);
 
-    private async Task RefreshAllAsync(bool silent)
+    private async Task RefreshAllAsync(
+        bool silent,
+        bool skipAuthenticationRequired)
     {
         if (_isUiPreview)
         {
@@ -295,9 +296,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 StatusMessage = "正在刷新所有账号额度…";
             }
 
-            await _quotaService.RefreshAllAsync();
+            var refreshed = await _quotaService.RefreshAllAsync(
+                skipAuthenticationRequired);
             await ReloadAccountsAsync();
-            StatusMessage = "额度已更新";
+            StatusMessage = skipAuthenticationRequired && refreshed.Count == 0
+                ? "已跳过需要重新登录的账号"
+                : "额度已更新";
         }
         catch (Exception exception)
         {

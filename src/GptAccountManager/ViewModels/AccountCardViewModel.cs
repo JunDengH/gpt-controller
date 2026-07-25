@@ -57,15 +57,4 @@ public sealed class AccountCardViewModel
     };
 
     public bool HasFreshQuota => Profile.Quota?.Status == QuotaStatus.Fresh;
-
-    public string TrayDisplay
-    {
-        get
-        {
-            var quota = Profile.Quota?.RemainingPercent is { } remaining
-                ? $"周剩余 {Math.Round(remaining):0}%"
-                : "周额度 —";
-            return $"{Nickname} · {PlanDisplayName} · {OwnershipDisplayName} · {quota}";
-        }
-    }
 }

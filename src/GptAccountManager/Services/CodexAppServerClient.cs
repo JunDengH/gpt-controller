@@ -11,6 +11,8 @@ public sealed record LoginStartResult(string LoginId, string AuthUrl);
 
 public sealed class CodexAppServerClient : IAsyncDisposable
 {
+    private static readonly TimeSpan GracefulShutdownTimeout = TimeSpan.FromSeconds(3);
+
     private readonly Process _process;
     private readonly StreamWriter _input;
     private readonly RedactingLogger _logger;
@@ -232,7 +234,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
                 {
                     name = "gpt-account-manager",
                     title = "GPT Account Manager",
-                    version = "1.1.1"
+                    version = "1.1.3"
                 },
                 capabilities = new
                 {
@@ -392,8 +394,27 @@ public sealed class CodexAppServerClient : IAsyncDisposable
         {
             if (!_process.HasExited)
             {
-                _process.Kill(entireProcessTree: true);
-                await _process.WaitForExitAsync();
+                var exitedGracefully = false;
+                try
+                {
+                    await _process
+                        .WaitForExitAsync()
+                        .WaitAsync(GracefulShutdownTimeout);
+                    exitedGracefully = true;
+                }
+                catch (TimeoutException)
+                {
+                    // Fall through to forced process-tree cleanup.
+                }
+
+                if (!exitedGracefully && !_process.HasExited)
+                {
+                    _process.Kill(entireProcessTree: true);
+                    await _process.WaitForExitAsync();
+                    await _logger.WarningAsync(
+                        "app-server.shutdown",
+                        "Graceful shutdown timed out; terminated the app-server process tree.");
+                }
             }
         }
         catch
