@@ -1,7 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Shell;
+using System.Windows.Interop;
+using GptAccountManager.Infrastructure;
 using GptAccountManager.ViewModels;
 using MahApps.Metro.IconPacks;
 
@@ -13,7 +14,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
-        UpdateWindowFrame();
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -33,6 +33,14 @@ public partial class MainWindow : Window
         }
 
         base.OnClosing(e);
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        WindowsDwm.TryApplyDefaultRoundedCorners(windowHandle);
+        WindowsDwm.TrySetSystemBorderColor(windowHandle, 0x3D, 0x3E, 0x41);
     }
 
     private void TitleBar_MouseLeftButtonDown(
@@ -74,7 +82,6 @@ public partial class MainWindow : Window
         MaximizeIcon.Kind = WindowState == WindowState.Maximized
             ? PackIconMaterialKind.WindowRestore
             : PackIconMaterialKind.WindowMaximize;
-        UpdateWindowFrame();
     }
 
     private void ToggleMaximizeRestore()
@@ -84,24 +91,4 @@ public partial class MainWindow : Window
             : WindowState.Maximized;
     }
 
-    private void UpdateWindowFrame()
-    {
-        var isMaximized = WindowState == WindowState.Maximized;
-        WindowFrame.CornerRadius = isMaximized
-            ? new CornerRadius(0)
-            : new CornerRadius(14);
-        TitleBarFrame.CornerRadius = isMaximized
-            ? new CornerRadius(0)
-            : new CornerRadius(13, 13, 0, 0);
-        FooterFrame.CornerRadius = isMaximized
-            ? new CornerRadius(0)
-            : new CornerRadius(0, 0, 13, 13);
-
-        if (WindowChrome.GetWindowChrome(this) is { } chrome)
-        {
-            chrome.CornerRadius = isMaximized
-                ? new CornerRadius(0)
-                : new CornerRadius(14);
-        }
-    }
 }

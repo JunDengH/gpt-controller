@@ -14,7 +14,7 @@
 - 显示 Free、Plus、Pro 5x、Pro 20x、Team、Business。
 - Team/Business 显示当前组织名称，其他套餐固定显示“个人账号”。
 - 切换前保存最新认证，失败时自动恢复并重启原账号。
-- 主窗口与系统托盘均可快速切换和查看额度。
+- 主窗口可快速切换和查看额度；系统托盘显示当前账号并提供打开、退出入口。
 
 ## 系统要求
 
@@ -77,7 +77,7 @@ dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 生成便携版：
 
 ```powershell
-.\scripts\package.ps1 -Version 1.1.1
+.\scripts\package.ps1 -Version 1.1.3
 ```
 
 如果 PATH 中存在 Inno Setup `ISCC.exe`，脚本还会生成安装包。

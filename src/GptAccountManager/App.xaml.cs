@@ -110,8 +110,7 @@ public partial class App : Application
             MainWindow = _mainWindow;
             _trayIcon = new TrayIconService(
                 ShowMainWindow,
-                ExitApplication,
-                _viewModel.SwitchFromTrayAsync);
+                ExitApplication);
             _viewModel.AccountsChanged += (_, _) =>
                 _trayIcon.UpdateAccounts(_viewModel.Accounts.ToList());
 
@@ -140,13 +139,18 @@ public partial class App : Application
             return;
         }
 
-        _mainWindow.Show();
+        if (!_mainWindow.IsVisible)
+        {
+            _mainWindow.Show();
+        }
+
         if (_mainWindow.WindowState == WindowState.Minimized)
         {
             _mainWindow.WindowState = WindowState.Normal;
         }
 
         _mainWindow.Activate();
+        _mainWindow.Focus();
     }
 
     public void ExitApplication()
