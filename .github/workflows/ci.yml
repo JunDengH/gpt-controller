@@ -24,6 +24,9 @@ jobs:
       - name: Build
         run: dotnet build GptAccountManager.slnx -c Release --no-restore
 
+      - name: Test
+        run: dotnet test GptAccountManager.slnx -c Release --no-build
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress

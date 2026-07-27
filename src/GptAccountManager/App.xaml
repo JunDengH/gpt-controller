@@ -1,7 +1,7 @@
 <Application x:Class="GptAccountManager.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             ShutdownMode="OnExplicitShutdown">
+             ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <ResourceDictionary>
             <Color x:Key="BackgroundColor">#252628</Color>

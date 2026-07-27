@@ -20,13 +20,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly DialogService _dialogs;
     private readonly bool _isUiPreview;
     private readonly DispatcherTimer _quotaTimer = new();
+    private readonly CancellationTokenSource _lifetimeCts = new();
     private AppSettings _settings = new();
     private bool _isBusy;
+    private bool _isRefreshingAll;
     private bool _isSettingsPage;
     private int _quotaRefreshMinutes = 15;
     private bool _closeToTray = true;
     private bool _startMinimized;
     private string _statusMessage = "准备就绪";
+    private CancellationTokenSource? _refreshCts;
+    private Task _refreshTask = Task.CompletedTask;
     private bool _disposed;
 
     public MainWindowViewModel(
@@ -54,16 +58,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         AddAccountCommand = new AsyncRelayCommand(AddAccountAsync, () => !IsBusy);
         ImportCurrentCommand = new AsyncRelayCommand(ImportCurrentAsync, () => !IsBusy);
-        RefreshAllCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
+        RefreshAllCommand = new AsyncRelayCommand(
+            RefreshAllAsync,
+            () => !IsBusy && !HasActiveRefresh);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => !IsBusy);
         ShowAccountsCommand = new RelayCommand(ShowAccountsPage);
         ShowSettingsCommand = new RelayCommand(ShowSettingsPage);
         SwitchAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             SwitchAccountAsync,
-            _ => !IsBusy);
+            account => !IsBusy && !account.IsActive);
         RefreshAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             RefreshAccountAsync,
-            _ => !IsBusy);
+            account => !IsBusy && !HasActiveRefresh && !account.IsRefreshing);
         RenameAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             RenameAccountAsync,
             _ => !IsBusy);
@@ -73,11 +79,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         _quotaTimer.Tick += async (_, _) =>
         {
-            if (!IsBusy)
+            if (!IsBusy && !HasActiveRefresh)
             {
                 await RefreshAllAsync(
                     silent: true,
-                    skipAuthenticationRequired: true);
+                    QuotaRefreshReason.Automatic);
             }
         };
     }
@@ -126,10 +132,28 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref _isBusy, value))
             {
+                OnPropertyChanged(nameof(IsWorking));
                 NotifyCommands();
             }
         }
     }
+
+    public bool IsRefreshingAll
+    {
+        get => _isRefreshingAll;
+        private set
+        {
+            if (SetProperty(ref _isRefreshingAll, value))
+            {
+                OnPropertyChanged(nameof(IsWorking));
+                NotifyCommands();
+            }
+        }
+    }
+
+    public bool IsWorking => IsBusy || IsRefreshingAll || HasActiveRefresh;
+
+    private bool HasActiveRefresh => !_refreshTask.IsCompleted;
 
     public string StatusMessage
     {
@@ -139,7 +163,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public async Task InitializeAsync()
     {
-        _settings = await _settingsService.LoadAsync();
+        _settings = await _settingsService.LoadAsync(_lifetimeCts.Token);
         QuotaRefreshMinutes = _settings.QuotaRefreshMinutes;
         CloseToTray = _settings.CloseToTray;
         StartMinimized = _settings.StartMinimized;
@@ -157,20 +181,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             StatusMessage = "正在检查恢复状态…";
-            var recovered = await _switchCoordinator.RecoverPendingTransactionAsync();
+            var recovered = await _switchCoordinator.RecoverPendingTransactionAsync(
+                _lifetimeCts.Token);
             if (recovered)
             {
                 StatusMessage = "已恢复上次未完成的账号切换";
             }
 
-            await ReloadAccountsAsync();
+            await ReloadAccountsAsync(_lifetimeCts.Token);
             if (Accounts.Count == 0 &&
                 _importService.HasLiveAccount &&
                 _dialogs.Ask(
                     "导入当前账号",
                     "检测到 ChatGPT 当前登录账号。是否将它安全导入账号管理器？"))
             {
-                await ImportCurrentCoreAsync();
+                await ImportCurrentCoreAsync(_lifetimeCts.Token);
             }
 
             if (!recovered)
@@ -180,6 +205,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     : "准备就绪";
             }
         }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels initialization without showing an error.
+        }
         catch (Exception exception)
         {
             StatusMessage = "初始化失败";
@@ -188,7 +217,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
-            _quotaTimer.Start();
+            if (!_disposed)
+            {
+                _quotaTimer.Start();
+            }
         }
     }
 
@@ -200,22 +232,27 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!await EnsureFileStoreAsync())
-        {
-            return;
-        }
-
         IsBusy = true;
         try
         {
+            await CancelAndDrainRefreshesAsync();
+            if (!await EnsureFileStoreAsync(_lifetimeCts.Token))
+            {
+                return;
+            }
+
             var account = await _oauthService.AddAccountAsync(
-                message => DispatchStatus(message));
+                message => DispatchStatus(message),
+                _lifetimeCts.Token);
             StatusMessage = $"已添加 {account.Nickname}";
-            await ReloadAccountsAsync();
+            await ReloadAccountsAsync(_lifetimeCts.Token);
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "已取消添加账号";
+            if (!_lifetimeCts.IsCancellationRequested)
+            {
+                StatusMessage = "已取消添加账号";
+            }
         }
         catch (Exception exception)
         {
@@ -236,18 +273,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!await EnsureFileStoreAsync())
-        {
-            return;
-        }
-
         IsBusy = true;
         try
         {
-            await ImportCurrentCoreAsync();
-            await RefreshAllAsync(
-                silent: true,
-                skipAuthenticationRequired: false);
+            await CancelAndDrainRefreshesAsync();
+            if (!await EnsureFileStoreAsync(_lifetimeCts.Token))
+            {
+                return;
+            }
+
+            var imported = await ImportCurrentCoreAsync(_lifetimeCts.Token);
+            IsBusy = false;
+            StartPostSwitchRefresh(imported.Id);
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels import without showing an error.
         }
         catch (Exception exception)
         {
@@ -260,21 +301,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task ImportCurrentCoreAsync()
+    private async Task<AccountProfile> ImportCurrentCoreAsync(
+        CancellationToken cancellationToken)
     {
         StatusMessage = "正在导入当前账号…";
-        var imported = await _importService.ImportAsync();
+        var imported = await _importService.ImportAsync(cancellationToken);
         StatusMessage = $"已导入 {imported.Nickname}";
-        await ReloadAccountsAsync();
+        await ReloadAccountsAsync(cancellationToken);
+        return imported;
     }
 
     private Task RefreshAllAsync() => RefreshAllAsync(
         silent: false,
-        skipAuthenticationRequired: false);
+        QuotaRefreshReason.Manual);
 
     private async Task RefreshAllAsync(
         bool silent,
-        bool skipAuthenticationRequired)
+        QuotaRefreshReason reason)
     {
         if (_isUiPreview)
         {
@@ -288,20 +331,50 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        IsBusy = true;
         try
         {
-            if (!silent)
+            await RunRefreshSessionAsync(async cancellationToken =>
             {
-                StatusMessage = "正在刷新所有账号额度…";
-            }
+                IsRefreshingAll = true;
+                var refreshedCount = 0;
+                try
+                {
+                    if (!silent)
+                    {
+                        StatusMessage = "正在刷新所有账号额度…";
+                    }
 
-            var refreshed = await _quotaService.RefreshAllAsync(
-                skipAuthenticationRequired);
-            await ReloadAccountsAsync();
-            StatusMessage = skipAuthenticationRequired && refreshed.Count == 0
-                ? "已跳过需要重新登录的账号"
-                : "额度已更新";
+                    foreach (var account in Accounts.ToList())
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (reason == QuotaRefreshReason.Automatic &&
+                            QuotaRefreshPolicy.ShouldSkipAutomatic(
+                                account.Profile.Quota))
+                        {
+                            continue;
+                        }
+
+                        await RefreshCardCoreAsync(
+                            account,
+                            reason,
+                            updateGlobalStatus: false,
+                            cancellationToken);
+                        refreshedCount++;
+                    }
+
+                    StatusMessage = refreshedCount == 0
+                        ? "已跳过确认需要重新登录的账号"
+                        : "额度已更新";
+                }
+                finally
+                {
+                    IsRefreshingAll = false;
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // A switch, account mutation, or application exit cancels refresh.
         }
         catch (Exception exception)
         {
@@ -310,10 +383,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 _dialogs.Error("刷新失败", exception.Message);
             }
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -325,22 +394,56 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        IsBusy = true;
         try
         {
-            StatusMessage = $"正在刷新 {account.Nickname}…";
-            await _quotaService.RefreshAsync(account.Id);
-            await ReloadAccountsAsync();
-            StatusMessage = $"{account.Nickname} 已更新";
+            await RunRefreshSessionAsync(cancellationToken =>
+                RefreshCardCoreAsync(
+                    account,
+                    QuotaRefreshReason.Manual,
+                    updateGlobalStatus: true,
+                    cancellationToken));
+        }
+        catch (OperationCanceledException)
+        {
+            // A switch, account mutation, or application exit cancels refresh.
         }
         catch (Exception exception)
         {
             StatusMessage = "额度刷新失败";
             _dialogs.Error("刷新失败", exception.Message);
         }
+    }
+
+    private async Task RefreshCardCoreAsync(
+        AccountCardViewModel account,
+        QuotaRefreshReason reason,
+        bool updateGlobalStatus,
+        CancellationToken cancellationToken)
+    {
+        account.IsRefreshing = true;
+        NotifyCommands();
+        try
+        {
+            if (updateGlobalStatus)
+            {
+                StatusMessage = $"正在刷新 {account.Nickname}…";
+            }
+
+            var updated = await _quotaService.RefreshAsync(
+                account.Id,
+                reason,
+                cancellationToken);
+            account.UpdateProfile(updated);
+            AccountsChanged?.Invoke(this, EventArgs.Empty);
+            if (updateGlobalStatus)
+            {
+                StatusMessage = $"{account.Nickname} 已更新";
+            }
+        }
         finally
         {
-            IsBusy = false;
+            account.IsRefreshing = false;
+            NotifyCommands();
         }
     }
 
@@ -382,20 +485,30 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         IsBusy = true;
+        var refreshAfterSwitch = false;
         try
         {
-            StatusMessage = $"正在切换到 {account.Nickname}…";
-            var result = await _switchCoordinator.SwitchAsync(account.Id);
-            await ReloadAccountsAsync();
+            await CancelAndDrainRefreshesAsync();
+            var progress = new ImmediateProgress<SwitchStage>(stage =>
+                StatusMessage = DescribeSwitchStage(stage, account.Nickname));
+            var result = await _switchCoordinator.SwitchAsync(
+                account.Id,
+                progress,
+                _lifetimeCts.Token);
+            await ReloadAccountsAsync(_lifetimeCts.Token);
             StatusMessage = result.Message;
             if (!result.IsSuccess)
             {
                 _dialogs.Error("账号切换", result.Message);
-                return;
             }
-
-            await _quotaService.RefreshAsync(account.Id);
-            await ReloadAccountsAsync();
+            else
+            {
+                refreshAfterSwitch = true;
+            }
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels switching without showing an error.
         }
         catch (Exception exception)
         {
@@ -405,6 +518,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+        }
+
+        if (refreshAfterSwitch && !_disposed)
+        {
+            StartPostSwitchRefresh(account.Id);
         }
     }
 
@@ -422,15 +540,32 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var profile = await _vault.GetProfileAsync(account.Id);
-        if (profile is null)
+        IsBusy = true;
+        try
         {
-            return;
-        }
+            await CancelAndDrainRefreshesAsync();
+            var profile = await _vault.GetProfileAsync(
+                account.Id,
+                _lifetimeCts.Token);
+            if (profile is null)
+            {
+                return;
+            }
 
-        await _vault.UpsertProfileAsync(profile with { Nickname = nickname.Trim() });
-        await ReloadAccountsAsync();
-        StatusMessage = "昵称已更新";
+            await _vault.UpsertProfileAsync(
+                profile with { Nickname = nickname.Trim() },
+                cancellationToken: _lifetimeCts.Token);
+            await ReloadAccountsAsync(_lifetimeCts.Token);
+            StatusMessage = "昵称已更新";
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels mutation without showing an error.
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     private async Task DeleteAccountAsync(AccountCardViewModel account)
@@ -454,14 +589,28 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await _vault.DeleteProfileAsync(account.Id);
-        await ReloadAccountsAsync();
-        StatusMessage = "账号档案已删除";
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            await _vault.DeleteProfileAsync(account.Id, _lifetimeCts.Token);
+            await ReloadAccountsAsync(_lifetimeCts.Token);
+            StatusMessage = "账号档案已删除";
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels mutation without showing an error.
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    private async Task<bool> EnsureFileStoreAsync()
+    private async Task<bool> EnsureFileStoreAsync(
+        CancellationToken cancellationToken)
     {
-        if (await _configService.IsFileStoreCompatibleAsync())
+        if (await _configService.IsFileStoreCompatibleAsync(cancellationToken))
         {
             return true;
         }
@@ -474,7 +623,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return false;
         }
 
-        await _configService.EnableFileStoreAsync();
+        await _configService.EnableFileStoreAsync(cancellationToken);
         _dialogs.Info("配置已更新", "已切换到文件认证模式。重新登录后即可管理账号。");
         return true;
     }
@@ -515,7 +664,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (!_isUiPreview)
         {
-            await _settingsService.SaveAsync(_settings);
+            try
+            {
+                await _settingsService.SaveAsync(
+                    _settings,
+                    _lifetimeCts.Token);
+            }
+            catch (OperationCanceledException) when (
+                _lifetimeCts.IsCancellationRequested)
+            {
+                return;
+            }
         }
 
         StatusMessage = _isUiPreview
@@ -601,15 +760,25 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             Status = status
         };
 
-    private async Task ReloadAccountsAsync()
+    private async Task ReloadAccountsAsync(
+        CancellationToken cancellationToken)
     {
-        var profiles = await _vault.LoadProfilesAsync();
+        var profiles = await _vault.LoadProfilesAsync(cancellationToken);
+        var existing = Accounts.ToDictionary(account => account.Id);
         Accounts.Clear();
         foreach (var profile in profiles
                      .OrderByDescending(item => item.IsActive)
                      .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase))
         {
-            Accounts.Add(new AccountCardViewModel(profile));
+            if (existing.TryGetValue(profile.Id, out var account))
+            {
+                account.UpdateProfile(profile);
+                Accounts.Add(account);
+            }
+            else
+            {
+                Accounts.Add(new AccountCardViewModel(profile));
+            }
         }
 
         OnPropertyChanged(nameof(Accounts));
@@ -618,6 +787,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void DispatchStatus(string message)
     {
+        if (_lifetimeCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         var dispatcher = System.Windows.Application.Current.Dispatcher;
         if (dispatcher.CheckAccess())
         {
@@ -625,8 +799,131 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         else
         {
-            dispatcher.Invoke(() => StatusMessage = message);
+            dispatcher.BeginInvoke(() =>
+            {
+                if (!_lifetimeCts.IsCancellationRequested)
+                {
+                    StatusMessage = message;
+                }
+            });
         }
+    }
+
+    private async Task RunRefreshSessionAsync(
+        Func<CancellationToken, Task> operation)
+    {
+        if (HasActiveRefresh)
+        {
+            return;
+        }
+
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCts.Token);
+        _refreshCts = cancellation;
+        Task task;
+        try
+        {
+            task = operation(cancellation.Token);
+        }
+        catch
+        {
+            _refreshCts = null;
+            cancellation.Dispose();
+            throw;
+        }
+
+        _refreshTask = task;
+        OnPropertyChanged(nameof(IsWorking));
+        NotifyCommands();
+        try
+        {
+            await task;
+        }
+        finally
+        {
+            if (ReferenceEquals(_refreshTask, task))
+            {
+                _refreshTask = Task.CompletedTask;
+                _refreshCts = null;
+                cancellation.Dispose();
+                OnPropertyChanged(nameof(IsWorking));
+                NotifyCommands();
+            }
+        }
+    }
+
+    private async Task CancelAndDrainRefreshesAsync()
+    {
+        var task = _refreshTask;
+        if (task.IsCompleted)
+        {
+            return;
+        }
+
+        _refreshCts?.Cancel();
+        try
+        {
+            await task;
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is the expected handoff from refresh to mutation.
+        }
+    }
+
+    private void StartPostSwitchRefresh(Guid accountId)
+    {
+        var account = Accounts.FirstOrDefault(item => item.Id == accountId);
+        if (account is null || _disposed || HasActiveRefresh)
+        {
+            return;
+        }
+
+        _ = RefreshAfterSwitchAsync(account);
+    }
+
+    private async Task RefreshAfterSwitchAsync(AccountCardViewModel account)
+    {
+        try
+        {
+            await RunRefreshSessionAsync(cancellationToken =>
+                RefreshCardCoreAsync(
+                    account,
+                    QuotaRefreshReason.PostSwitch,
+                    updateGlobalStatus: false,
+                    cancellationToken));
+        }
+        catch (OperationCanceledException)
+        {
+            // A later user action or shutdown supersedes the background refresh.
+        }
+        catch
+        {
+            if (!_lifetimeCts.IsCancellationRequested)
+            {
+                StatusMessage = $"{account.Nickname} 已切换，额度将在稍后重试";
+            }
+        }
+    }
+
+    internal static string DescribeSwitchStage(
+        SwitchStage stage,
+        string nickname) =>
+        stage switch
+        {
+            SwitchStage.ValidatingCredential => $"正在验证 {nickname} 的登录状态…",
+            SwitchStage.StoppingChatGpt => "正在关闭 ChatGPT…",
+            SwitchStage.CheckingBlockers => "正在检查共享认证进程…",
+            SwitchStage.WritingCredential => "正在安全写入账号认证…",
+            SwitchStage.LaunchingChatGpt => "正在启动 ChatGPT…",
+            SwitchStage.Completed => $"已切换到 {nickname}",
+            _ => $"正在切换到 {nickname}…"
+        };
+
+    private sealed class ImmediateProgress<T>(Action<T> report)
+        : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     private void NotifyCommands()
@@ -650,5 +947,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         _disposed = true;
         _quotaTimer.Stop();
+        _lifetimeCts.Cancel();
+        _refreshCts?.Cancel();
     }
 }

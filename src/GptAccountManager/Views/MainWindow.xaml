@@ -681,8 +681,21 @@
                                                                                                     VerticalAlignment="Center"
                                                                                                     Kind="Refresh" />
                                                                     </Border>
-                                                                    <TextBlock VerticalAlignment="Center"
-                                                                               Text="刷新" />
+                                                                    <TextBlock VerticalAlignment="Center">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Text"
+                                                                                        Value="刷新" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsRefreshing}"
+                                                                                                 Value="True">
+                                                                                        <Setter Property="Text"
+                                                                                                Value="刷新中…" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
                                                                 </StackPanel>
                                                             </Button>
 
@@ -991,7 +1004,7 @@
                                         <TextBlock VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                   Text="GPT Account Manager v1.1.3 · 本地优先 · 无遥测" />
+                                                   Text="GPT Account Manager v1.1.4 · 本地优先 · 无遥测" />
                                         <Button HorizontalAlignment="Right"
                                                 Command="{Binding SaveSettingsCommand}"
                                                 Style="{StaticResource ResponsivePrimaryButtonStyle}">
@@ -1043,7 +1056,7 @@
                                        BasedOn="{StaticResource RoundedProgressBarStyle}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                        <DataTrigger Binding="{Binding IsWorking}" Value="True">
                                             <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                     </Style.Triggers>

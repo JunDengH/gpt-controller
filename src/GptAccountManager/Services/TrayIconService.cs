@@ -45,7 +45,7 @@ public sealed class TrayIconService : IDisposable
             AutoClose = true,
             BackColor = TrayPalette.Surface,
             ForeColor = TrayPalette.TextPrimary,
-            Padding = new Padding(6),
+            Padding = new Padding(0, 6, 0, 6),
             Renderer = new TrayMenuRenderer(),
             ShowCheckMargin = false,
             ShowImageMargin = false
@@ -153,7 +153,8 @@ public sealed class TrayIconService : IDisposable
                 FontStyle.Bold),
             ForeColor = TrayPalette.TextPrimary,
             Height = 44,
-            Padding = new Padding(10, 0, 8, 0),
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
             TextAlign = ContentAlignment.MiddleLeft,
             ToolTipText = text,
             Width = 312
@@ -166,7 +167,9 @@ public sealed class TrayIconService : IDisposable
             AutoSize = false,
             ForeColor = TrayPalette.TextPrimary,
             Height = 40,
-            Padding = new Padding(10, 0, 8, 0),
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            TextAlign = ContentAlignment.MiddleLeft,
             Width = 312
         };
 
@@ -299,19 +302,46 @@ public sealed class TrayIconService : IDisposable
                 return;
             }
 
-            var horizontalInset = ScaleForDpi(toolStrip, 3);
-            var verticalInset = ScaleForDpi(toolStrip, 2);
-            var bounds = new Rectangle(
-                horizontalInset,
-                verticalInset,
-                Math.Max(1, e.Item.Width - (horizontalInset * 2)),
-                Math.Max(1, e.Item.Height - (verticalInset * 2)));
+            var bounds = TrayMenuLayout.GetRowBounds(
+                e.Item.Size,
+                toolStrip.DeviceDpi);
             using var path = CreateRoundedRectangle(
                 bounds,
                 ScaleForDpi(toolStrip, 7));
             using var brush = new SolidBrush(TrayPalette.SurfaceHover);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.FillPath(brush, path);
+        }
+
+        protected override void OnRenderItemText(
+            ToolStripItemTextRenderEventArgs e)
+        {
+            if (e.ToolStrip is not { } toolStrip ||
+                string.IsNullOrEmpty(e.Text))
+            {
+                return;
+            }
+
+            var bounds = TrayMenuLayout.GetTextBounds(
+                e.Item.Size,
+                toolStrip.DeviceDpi);
+            var flags =
+                TextFormatFlags.SingleLine |
+                TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis |
+                TextFormatFlags.NoPrefix |
+                TextFormatFlags.Left;
+
+            var color = e.Item.Enabled
+                ? e.Item.ForeColor
+                : SystemColors.GrayText;
+            TextRenderer.DrawText(
+                e.Graphics,
+                e.Text,
+                e.TextFont,
+                bounds,
+                color,
+                flags);
         }
 
         protected override void OnRenderToolStripBackground(
@@ -421,4 +451,40 @@ public sealed class TrayIconService : IDisposable
         Math.Max(
             1,
             (int)Math.Round(logicalPixels * toolStrip.DeviceDpi / 96d));
+}
+
+internal static class TrayMenuLayout
+{
+    private const int LogicalTextInset = 12;
+    private const int LogicalVerticalInset = 2;
+
+    public static Rectangle GetRowBounds(
+        Size itemSize,
+        int dpi)
+    {
+        var verticalInset = ScaleForDpi(LogicalVerticalInset, dpi);
+        return new Rectangle(
+            0,
+            verticalInset,
+            Math.Max(1, itemSize.Width),
+            Math.Max(1, itemSize.Height - (verticalInset * 2)));
+    }
+
+    public static Rectangle GetTextBounds(
+        Size itemSize,
+        int dpi)
+    {
+        var rowBounds = GetRowBounds(itemSize, dpi);
+        var textInset = ScaleForDpi(LogicalTextInset, dpi);
+        return new Rectangle(
+            rowBounds.Left + textInset,
+            rowBounds.Top,
+            Math.Max(1, rowBounds.Width - (textInset * 2)),
+            rowBounds.Height);
+    }
+
+    private static int ScaleForDpi(int logicalPixels, int dpi) =>
+        Math.Max(
+            1,
+            (int)Math.Round(logicalPixels * dpi / 96d));
 }

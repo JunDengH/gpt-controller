@@ -10,13 +10,17 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyName>GptAccountManager</AssemblyName>
     <RootNamespace>GptAccountManager</RootNamespace>
-    <Version>1.1.3</Version>
+    <Version>1.1.4</Version>
     <Authors>GPT Account Manager contributors</Authors>
     <Description>Local-first account switcher and quota monitor for the ChatGPT Windows app.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GptAccountManager.Tests" />
   </ItemGroup>
 
   <ItemGroup>

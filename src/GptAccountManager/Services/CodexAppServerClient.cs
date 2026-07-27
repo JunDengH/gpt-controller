@@ -9,14 +9,34 @@ namespace GptAccountManager.Services;
 
 public sealed record LoginStartResult(string LoginId, string AuthUrl);
 
-public sealed class CodexAppServerClient : IAsyncDisposable
+public sealed class CodexAppServerException : Exception
 {
-    private static readonly TimeSpan GracefulShutdownTimeout = TimeSpan.FromSeconds(3);
+    public CodexAppServerException(
+        string rpcMethod,
+        string? errorCode,
+        string message)
+        : base(message)
+    {
+        RpcMethod = rpcMethod;
+        ErrorCode = errorCode;
+    }
+
+    public string RpcMethod { get; }
+    public string? ErrorCode { get; }
+}
+
+public sealed class CodexAppServerClient : ICodexAppServerClient
+{
+    internal static readonly TimeSpan GracefulShutdownTimeout =
+        TimeSpan.FromMilliseconds(500);
+    internal static readonly TimeSpan PumpShutdownTimeout =
+        TimeSpan.FromMilliseconds(500);
+    private static readonly ConcurrentDictionary<int, Process> RunningProcesses = new();
 
     private readonly Process _process;
     private readonly StreamWriter _input;
     private readonly RedactingLogger _logger;
-    private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> _pending = new();
+    private readonly ConcurrentDictionary<long, PendingRequest> _pending = new();
     private readonly Channel<JsonElement> _notifications = Channel.CreateUnbounded<JsonElement>();
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -73,6 +93,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
             throw new InvalidOperationException("Failed to start codex app-server.");
         }
 
+        RunningProcesses[process.Id] = process;
         var client = new CodexAppServerClient(process, process.StandardInput, logger);
         try
         {
@@ -92,7 +113,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
         var result = await RequestAsync(
             "account/read",
             new { refreshToken = false },
-            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(8),
             cancellationToken);
         if (!result.TryGetProperty("account", out var account) ||
             account.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
@@ -111,7 +132,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
         RequestAsync(
             "account/rateLimits/read",
             null,
-            TimeSpan.FromSeconds(20),
+            TimeSpan.FromSeconds(12),
             cancellationToken);
 
     public async Task<LoginStartResult> StartChatGptLoginAsync(
@@ -186,7 +207,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
         var id = Interlocked.Increment(ref _requestId);
         var completion = new TaskCompletionSource<JsonElement>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_pending.TryAdd(id, completion))
+        if (!_pending.TryAdd(id, new PendingRequest(method, completion)))
         {
             throw new InvalidOperationException("Could not register app-server request.");
         }
@@ -234,7 +255,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
                 {
                     name = "gpt-account-manager",
                     title = "GPT Account Manager",
-                    version = "1.1.3"
+                    version = "1.1.4"
                 },
                 capabilities = new
                 {
@@ -243,7 +264,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
                     optOutNotificationMethods = Array.Empty<string>()
                 }
             },
-            TimeSpan.FromSeconds(15),
+            TimeSpan.FromSeconds(8),
             cancellationToken);
         await WriteMessageAsync(
             new Dictionary<string, object?>
@@ -298,20 +319,24 @@ public sealed class CodexAppServerClient : IAsyncDisposable
                 }
 
                 if (TryReadId(message, out var id) &&
-                    _pending.TryGetValue(id, out var completion))
+                    _pending.TryGetValue(id, out var pending))
                 {
                     if (message.TryGetProperty("error", out var error))
                     {
-                        completion.TrySetException(new InvalidOperationException(
-                            ReadString(error, "message") ?? "Unknown app-server error."));
+                        pending.Completion.TrySetException(
+                            new CodexAppServerException(
+                                pending.Method,
+                                ReadErrorCode(error),
+                                ReadString(error, "message") ??
+                                "Unknown app-server error."));
                     }
                     else if (message.TryGetProperty("result", out var result))
                     {
-                        completion.TrySetResult(result.Clone());
+                        pending.Completion.TrySetResult(result.Clone());
                     }
                     else
                     {
-                        completion.TrySetException(
+                        pending.Completion.TrySetException(
                             new InvalidDataException("app-server response has no result."));
                     }
 
@@ -337,7 +362,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
             var failure = new InvalidOperationException("codex app-server exited.");
             foreach (var pending in _pending.Values)
             {
-                pending.TrySetException(failure);
+                pending.Completion.TrySetException(failure);
             }
 
             _notifications.Writer.TryComplete();
@@ -392,30 +417,7 @@ public sealed class CodexAppServerClient : IAsyncDisposable
 
         try
         {
-            if (!_process.HasExited)
-            {
-                var exitedGracefully = false;
-                try
-                {
-                    await _process
-                        .WaitForExitAsync()
-                        .WaitAsync(GracefulShutdownTimeout);
-                    exitedGracefully = true;
-                }
-                catch (TimeoutException)
-                {
-                    // Fall through to forced process-tree cleanup.
-                }
-
-                if (!exitedGracefully && !_process.HasExited)
-                {
-                    _process.Kill(entireProcessTree: true);
-                    await _process.WaitForExitAsync();
-                    await _logger.WarningAsync(
-                        "app-server.shutdown",
-                        "Graceful shutdown timed out; terminated the app-server process tree.");
-                }
-            }
+            await StopProcessAsync(_process, _logger);
         }
         catch
         {
@@ -424,16 +426,75 @@ public sealed class CodexAppServerClient : IAsyncDisposable
 
         try
         {
-            await Task.WhenAll(_stdoutPump, _stderrPump).WaitAsync(TimeSpan.FromSeconds(2));
+            await Task.WhenAll(_stdoutPump, _stderrPump).WaitAsync(PumpShutdownTimeout);
         }
         catch
         {
             // Pumps stop when process streams close.
         }
 
+        RunningProcesses.TryRemove(_process.Id, out _);
         _process.Dispose();
         _writeGate.Dispose();
         _lifetime.Dispose();
+    }
+
+    internal static void TerminateRunningProcesses()
+    {
+        foreach (var (processId, process) in RunningProcesses.ToArray())
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+                // The process may have exited or been disposed concurrently.
+            }
+            finally
+            {
+                RunningProcesses.TryRemove(processId, out _);
+            }
+        }
+    }
+
+    internal static async Task StopProcessAsync(
+        Process process,
+        RedactingLogger logger)
+    {
+        if (process.HasExited)
+        {
+            return;
+        }
+
+        var exitedGracefully = false;
+        try
+        {
+            await process
+                .WaitForExitAsync()
+                .WaitAsync(GracefulShutdownTimeout);
+            exitedGracefully = true;
+        }
+        catch (TimeoutException)
+        {
+            // Fall through to forced process-tree cleanup.
+        }
+
+        if (exitedGracefully || process.HasExited)
+        {
+            return;
+        }
+
+        process.Kill(entireProcessTree: true);
+        await process
+            .WaitForExitAsync()
+            .WaitAsync(GracefulShutdownTimeout);
+        await logger.WarningAsync(
+            "app-server.shutdown",
+            "Graceful shutdown timed out; terminated the app-server process tree.");
     }
 
     private static bool TryReadId(JsonElement message, out long id)
@@ -464,4 +525,24 @@ public sealed class CodexAppServerClient : IAsyncDisposable
         var value = property.GetString();
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
+
+    private static string? ReadErrorCode(JsonElement error)
+    {
+        if (error.ValueKind != JsonValueKind.Object ||
+            !error.TryGetProperty("code", out var code))
+        {
+            return null;
+        }
+
+        return code.ValueKind switch
+        {
+            JsonValueKind.String => code.GetString(),
+            JsonValueKind.Number => code.GetRawText(),
+            _ => null
+        };
+    }
+
+    private sealed record PendingRequest(
+        string Method,
+        TaskCompletionSource<JsonElement> Completion);
 }

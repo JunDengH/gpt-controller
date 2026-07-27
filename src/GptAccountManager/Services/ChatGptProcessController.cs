@@ -6,10 +6,12 @@ namespace GptAccountManager.Services;
 
 public sealed class ChatGptProcessController : IChatGptProcessController
 {
-    private readonly CodexLocator _locator;
+    private readonly ICodexRuntimeLocator _locator;
     private readonly RedactingLogger _logger;
 
-    public ChatGptProcessController(CodexLocator locator, RedactingLogger logger)
+    public ChatGptProcessController(
+        ICodexRuntimeLocator locator,
+        RedactingLogger logger)
     {
         _locator = locator;
         _logger = logger;
@@ -67,7 +69,7 @@ public sealed class ChatGptProcessController : IChatGptProcessController
                 }
             }
 
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(8);
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
             while (DateTimeOffset.UtcNow < deadline)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -152,7 +154,23 @@ public sealed class ChatGptProcessController : IChatGptProcessController
             using var process = new Process { StartInfo = startInfo };
             process.Start();
             var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
+            try
+            {
+                await process
+                    .WaitForExitAsync(cancellationToken)
+                    .WaitAsync(TimeSpan.FromSeconds(3), cancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                KillProcessTreeBestEffort(process);
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                KillProcessTreeBestEffort(process);
+                throw;
+            }
+
             var output = (await outputTask).Trim();
             if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
             {
@@ -168,6 +186,17 @@ public sealed class ChatGptProcessController : IChatGptProcessController
                     ? $"Codex app-server（PID {id.GetInt32()}，{ReadOwner(row)}）"
                     : "Codex app-server")
                 .ToList();
+        }
+        catch (TimeoutException exception)
+        {
+            await _logger.WarningAsync(
+                "process.inspect",
+                $"Inspecting external app-server processes timed out: {exception.Message}");
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -199,7 +228,7 @@ public sealed class ChatGptProcessController : IChatGptProcessController
                 UseShellExecute = true
             });
 
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
             while (DateTimeOffset.UtcNow < deadline)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -212,6 +241,10 @@ public sealed class ChatGptProcessController : IChatGptProcessController
             }
 
             return false;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -232,6 +265,21 @@ public sealed class ChatGptProcessController : IChatGptProcessController
         }
     }
 
+    private static void KillProcessTreeBestEffort(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+            // The caller handles the timeout or cancellation that led here.
+        }
+    }
+
     private static async Task WaitForExitSafelyAsync(
         Process process,
         CancellationToken cancellationToken)
@@ -243,6 +291,10 @@ public sealed class ChatGptProcessController : IChatGptProcessController
                 await process.WaitForExitAsync(cancellationToken)
                     .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {

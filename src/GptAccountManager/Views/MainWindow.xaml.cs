@@ -18,22 +18,27 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (Application.Current is App { IsExiting: false })
+        if (Application.Current is App app && !app.IsExiting)
         {
-            if (DataContext is MainWindowViewModel { CloseToTray: true })
+            if (ShouldMinimizeToTray(
+                    app.IsExiting,
+                    DataContext is MainWindowViewModel { CloseToTray: true }))
             {
                 e.Cancel = true;
                 Hide();
                 return;
             }
 
-            e.Cancel = true;
-            ((App)Application.Current).ExitApplication();
-            return;
+            app.PrepareForExit();
         }
 
         base.OnClosing(e);
     }
+
+    internal static bool ShouldMinimizeToTray(
+        bool isExiting,
+        bool closeToTray) =>
+        !isExiting && closeToTray;
 
     protected override void OnSourceInitialized(EventArgs e)
     {
