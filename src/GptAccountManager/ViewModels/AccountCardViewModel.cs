@@ -1,15 +1,19 @@
 using GptAccountManager.Models;
+using GptAccountManager.Mvvm;
 
 namespace GptAccountManager.ViewModels;
 
-public sealed class AccountCardViewModel
+public sealed class AccountCardViewModel : ObservableObject
 {
+    private AccountProfile _profile;
+    private bool _isRefreshing;
+
     public AccountCardViewModel(AccountProfile profile)
     {
-        Profile = profile;
+        _profile = profile;
     }
 
-    public AccountProfile Profile { get; }
+    public AccountProfile Profile => _profile;
     public Guid Id => Profile.Id;
     public string Nickname => Profile.Nickname;
     public string Email => Profile.Email;
@@ -48,13 +52,51 @@ public sealed class AccountCardViewModel
             ? $"{quota.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
             : "尚未获取";
 
-    public string QuotaStatusText => Profile.Quota?.Status switch
+    public string QuotaStatusText => Profile.Quota switch
     {
-        QuotaStatus.Fresh => "数据最新",
-        QuotaStatus.Stale => "显示上次数据",
-        QuotaStatus.AuthenticationRequired => "需要重新登录",
+        { Status: QuotaStatus.Fresh } => "数据最新",
+        { Status: QuotaStatus.Stale, ErrorCode: "active_refresh_deferred" } =>
+            "等待 ChatGPT 更新登录状态",
+        { Status: QuotaStatus.Stale } => "显示上次数据",
+        {
+            Status: QuotaStatus.AuthenticationRequired,
+            ErrorCode: "invalid_auth" or "confirmed_unauthorized"
+        } => "需要重新登录",
+        { Status: QuotaStatus.AuthenticationRequired } => "等待重新验证",
         _ => "额度不可用"
     };
 
     public bool HasFreshQuota => Profile.Quota?.Status == QuotaStatus.Fresh;
+
+    public bool IsRefreshing
+    {
+        get => _isRefreshing;
+        set => SetProperty(ref _isRefreshing, value);
+    }
+
+    public void UpdateProfile(AccountProfile profile)
+    {
+        if (profile.Id != Id)
+        {
+            throw new InvalidOperationException("不能用其他账号更新当前卡片。");
+        }
+
+        _profile = profile;
+        OnPropertyChanged(nameof(Profile));
+        OnPropertyChanged(nameof(Nickname));
+        OnPropertyChanged(nameof(Email));
+        OnPropertyChanged(nameof(IsActive));
+        OnPropertyChanged(nameof(CanDelete));
+        OnPropertyChanged(nameof(IsOrganization));
+        OnPropertyChanged(nameof(PlanDisplayName));
+        OnPropertyChanged(nameof(OwnershipDisplayName));
+        OnPropertyChanged(nameof(QuotaRemainingValue));
+        OnPropertyChanged(nameof(QuotaRemainingText));
+        OnPropertyChanged(nameof(QuotaResetText));
+        OnPropertyChanged(nameof(QuotaResetValueText));
+        OnPropertyChanged(nameof(QuotaUpdatedText));
+        OnPropertyChanged(nameof(QuotaUpdatedValueText));
+        OnPropertyChanged(nameof(QuotaStatusText));
+        OnPropertyChanged(nameof(HasFreshQuota));
+    }
 }

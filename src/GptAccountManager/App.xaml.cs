@@ -58,12 +58,14 @@ public partial class App : Application
             var metadataService = new AccountMetadataService();
             var quotaParser = new QuotaParser();
             var locator = new CodexLocator(paths);
+            var appServerFactory = new CodexAppServerClientFactory();
             var processController = new ChatGptProcessController(locator, logger);
             var operationGate = new OperationGate();
             var quotaService = new QuotaService(
                 paths,
                 vault,
                 locator,
+                appServerFactory,
                 processController,
                 metadataService,
                 quotaParser,
@@ -73,6 +75,7 @@ public partial class App : Application
                 paths,
                 vault,
                 locator,
+                appServerFactory,
                 metadataService,
                 quotaParser,
                 operationGate,
@@ -155,6 +158,18 @@ public partial class App : Application
 
     public void ExitApplication()
     {
+        PrepareForExit();
+        if (_mainWindow is not null)
+        {
+            _mainWindow.Close();
+            return;
+        }
+
+        Shutdown();
+    }
+
+    public void PrepareForExit()
+    {
         if (IsExiting)
         {
             return;
@@ -162,17 +177,17 @@ public partial class App : Application
 
         IsExiting = true;
         _viewModel?.Dispose();
-        _trayIcon?.Dispose();
-        _mainWindow?.Close();
-        Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        IsExiting = true;
+        PrepareForExit();
+        CodexAppServerClient.TerminateRunningProcesses();
         _viewModel?.Dispose();
         _trayIcon?.Dispose();
+        _trayIcon = null;
         _singleInstance?.Dispose();
+        _singleInstance = null;
         base.OnExit(e);
     }
 

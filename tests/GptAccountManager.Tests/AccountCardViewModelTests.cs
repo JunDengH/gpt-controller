@@ -1,0 +1,58 @@
+using GptAccountManager.Models;
+using GptAccountManager.ViewModels;
+
+namespace GptAccountManager.Tests;
+
+public sealed class AccountCardViewModelTests
+{
+    [Theory]
+    [InlineData("invalid_auth", "需要重新登录")]
+    [InlineData("confirmed_unauthorized", "需要重新登录")]
+    [InlineData("authentication_required", "等待重新验证")]
+    public void AuthenticationStatusUsesCompatibleCardCopy(
+        string errorCode,
+        string expected)
+    {
+        var card = CreateCard(QuotaStatus.AuthenticationRequired, errorCode);
+
+        Assert.Equal(expected, card.QuotaStatusText);
+    }
+
+    [Fact]
+    public void DeferredActiveRefreshIsShownAsStaleInsteadOfRelogin()
+    {
+        var card = CreateCard(QuotaStatus.Stale, "active_refresh_deferred");
+
+        Assert.Equal("等待 ChatGPT 更新登录状态", card.QuotaStatusText);
+    }
+
+    [Fact]
+    public void RefreshStateIsObservable()
+    {
+        var card = CreateCard(QuotaStatus.Fresh, null);
+        var changedProperties = new List<string?>();
+        card.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        card.IsRefreshing = true;
+
+        Assert.True(card.IsRefreshing);
+        Assert.Contains(nameof(AccountCardViewModel.IsRefreshing), changedProperties);
+    }
+
+    private static AccountCardViewModel CreateCard(
+        QuotaStatus status,
+        string? errorCode) =>
+        new(new AccountProfile
+        {
+            Nickname = "Test",
+            Email = "test@example.com",
+            AccountId = "account",
+            Ownership = AccountOwnership.Personal,
+            Quota = new QuotaSnapshot
+            {
+                FetchedAt = DateTimeOffset.UtcNow,
+                Status = status,
+                ErrorCode = errorCode
+            }
+        });
+}

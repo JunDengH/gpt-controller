@@ -35,3 +35,20 @@ public enum SwitchStatus
     RolledBack,
     Failed
 }
+
+public enum QuotaRefreshReason
+{
+    Manual,
+    Automatic,
+    PostSwitch
+}
+
+public enum SwitchStage
+{
+    ValidatingCredential,
+    StoppingChatGpt,
+    CheckingBlockers,
+    WritingCredential,
+    LaunchingChatGpt,
+    Completed
+}

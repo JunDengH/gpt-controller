@@ -11,7 +11,8 @@ public sealed record AuthClaims(
     string? OrganizationId,
     string? PlanType,
     IReadOnlyList<OrganizationClaim> Organizations,
-    DateTimeOffset? ExpiresAt);
+    DateTimeOffset? ExpiresAt,
+    DateTimeOffset? AccessTokenExpiresAt);
 
 public static class JwtClaimsReader
 {
@@ -28,6 +29,7 @@ public static class JwtClaimsReader
                 null,
                 null,
                 [],
+                null,
                 null);
         }
 
@@ -97,7 +99,10 @@ public static class JwtClaimsReader
             organizationId,
             plan,
             organizations,
-            expirations.Length == 0 ? null : expirations.Min());
+            expirations.Length == 0 ? null : expirations.Min(),
+            accessRoot is { } accessTokenRoot
+                ? ReadExpiration(accessTokenRoot)
+                : null);
     }
 
     private static JsonDocument DecodePayload(string token)

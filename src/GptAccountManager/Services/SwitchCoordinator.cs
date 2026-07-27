@@ -42,6 +42,7 @@ public sealed class SwitchCoordinator
 
     public async Task<SwitchResult> SwitchAsync(
         Guid targetProfileId,
+        IProgress<SwitchStage>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var systemSemaphore = new Semaphore(1, 1, MutexName);
@@ -57,7 +58,7 @@ public sealed class SwitchCoordinator
             }
 
             using var operation = await _operationGate.EnterAsync(cancellationToken);
-            return await SwitchCoreAsync(targetProfileId, cancellationToken);
+            return await SwitchCoreAsync(targetProfileId, progress, cancellationToken);
         }
         finally
         {
@@ -97,6 +98,10 @@ public sealed class SwitchCoordinator
             await _logger.WarningAsync("switch.recovery", "Recovered an incomplete switch transaction.");
             return true;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             await _logger.ErrorAsync("switch.recovery", exception);
@@ -106,8 +111,10 @@ public sealed class SwitchCoordinator
 
     private async Task<SwitchResult> SwitchCoreAsync(
         Guid targetProfileId,
+        IProgress<SwitchStage>? progress,
         CancellationToken cancellationToken)
     {
+        progress?.Report(SwitchStage.ValidatingCredential);
         var target = await _vault.GetProfileAsync(targetProfileId, cancellationToken);
         if (target is null)
         {
@@ -125,6 +132,10 @@ public sealed class SwitchCoordinator
             targetCredential = await _vault.ReadCredentialAsync(target.Id, cancellationToken);
             ValidateCredentialIdentity(targetCredential, target.AccountId);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             await _logger.ErrorAsync("switch.target", exception);
@@ -134,6 +145,7 @@ public sealed class SwitchCoordinator
         }
 
         var wasChatGptRunning = _processController.IsChatGptRunning();
+        progress?.Report(SwitchStage.StoppingChatGpt);
         if (!await _processController.StopChatGptAsync(cancellationToken))
         {
             await RestartIfStoppedAsync(wasChatGptRunning, cancellationToken);
@@ -142,7 +154,21 @@ public sealed class SwitchCoordinator
                 "无法关闭 ChatGPT，请关闭客户端后重试。");
         }
 
-        var blockers = await _processController.FindBlockingCodexProcessesAsync(cancellationToken);
+        progress?.Report(SwitchStage.CheckingBlockers);
+        IReadOnlyList<string> blockers;
+        try
+        {
+            blockers = await _processController.FindBlockingCodexProcessesAsync(
+                cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            await RestartIfStoppedAsync(wasChatGptRunning, cancellationToken);
+            return SwitchResult.Failure(
+                SwitchStatus.ProcessBlocked,
+                "检查共享认证进程超时。为保护当前登录状态，已取消切换。");
+        }
+
         if (blockers.Count > 0)
         {
             await RestartIfStoppedAsync(wasChatGptRunning, cancellationToken);
@@ -181,6 +207,7 @@ public sealed class SwitchCoordinator
 
         try
         {
+            progress?.Report(SwitchStage.WritingCredential);
             Directory.CreateDirectory(_paths.CodexHome);
             await AtomicFile.WriteAllBytesAsync(
                 _paths.LiveAuthFile,
@@ -189,6 +216,7 @@ public sealed class SwitchCoordinator
             var written = await File.ReadAllBytesAsync(_paths.LiveAuthFile, cancellationToken);
             ValidateCredentialIdentity(written, target.AccountId);
 
+            progress?.Report(SwitchStage.LaunchingChatGpt);
             if (!await _processController.LaunchChatGptAsync(cancellationToken))
             {
                 throw new InvalidOperationException("ChatGPT did not start within the expected time.");
@@ -197,7 +225,14 @@ public sealed class SwitchCoordinator
             await _vault.SetActiveProfileAsync(target.Id, cancellationToken);
             AtomicFile.TryDelete(_paths.TransactionFile);
             await _logger.InfoAsync("switch.complete", $"Activated profile {target.Id:N}.");
+            progress?.Report(SwitchStage.Completed);
             return SwitchResult.Success();
+        }
+        catch (OperationCanceledException)
+        {
+            // The journal is intentionally retained if cancellation happened after
+            // the live credential changed, so startup recovery can restore it.
+            throw;
         }
         catch (Exception exception)
         {
@@ -252,6 +287,10 @@ public sealed class SwitchCoordinator
             }
 
             await _vault.WriteCredentialAsync(previous.Id, liveCredential, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {

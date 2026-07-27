@@ -17,7 +17,13 @@ public sealed record CodexRuntimeManifest(
     string FileVersion,
     string ExecutablePath);
 
-public sealed class CodexLocator
+public interface ICodexRuntimeLocator
+{
+    Task<CodexInstallation> LocateAsync(
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class CodexLocator : ICodexRuntimeLocator
 {
     public const string ChatGptAumid = "OpenAI.Codex_2p2nqsd0c76g0!App";
     private readonly AppPaths _paths;
@@ -285,6 +291,7 @@ public sealed class CodexLocator
     private static async Task<string?> TryReadPackageLocationAsync(
         CancellationToken cancellationToken)
     {
+        Process? process = null;
         try
         {
             var startInfo = new ProcessStartInfo
@@ -300,7 +307,7 @@ public sealed class CodexLocator
             startInfo.ArgumentList.Add("-Command");
             startInfo.ArgumentList.Add(
                 "(Get-AppxPackage -Name OpenAI.Codex | Sort-Object Version -Descending | Select-Object -First 1 -ExpandProperty InstallLocation)");
-            using var process = new Process { StartInfo = startInfo };
+            process = new Process { StartInfo = startInfo };
             process.Start();
             var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
             await process.WaitForExitAsync(cancellationToken);
@@ -309,9 +316,29 @@ public sealed class CodexLocator
                 ? output
                 : null;
         }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (process is { HasExited: false })
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+                // Cancellation still propagates even if cleanup races process exit.
+            }
+
+            throw;
+        }
         catch
         {
             return null;
+        }
+        finally
+        {
+            process?.Dispose();
         }
     }
 

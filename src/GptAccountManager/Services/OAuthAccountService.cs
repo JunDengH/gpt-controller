@@ -8,7 +8,8 @@ public sealed class OAuthAccountService
 {
     private readonly AppPaths _paths;
     private readonly ProfileVault _vault;
-    private readonly CodexLocator _locator;
+    private readonly ICodexRuntimeLocator _locator;
+    private readonly ICodexAppServerClientFactory _appServerFactory;
     private readonly AccountMetadataService _metadataService;
     private readonly QuotaParser _quotaParser;
     private readonly OperationGate _operationGate;
@@ -17,7 +18,8 @@ public sealed class OAuthAccountService
     public OAuthAccountService(
         AppPaths paths,
         ProfileVault vault,
-        CodexLocator locator,
+        ICodexRuntimeLocator locator,
+        ICodexAppServerClientFactory appServerFactory,
         AccountMetadataService metadataService,
         QuotaParser quotaParser,
         OperationGate operationGate,
@@ -26,6 +28,7 @@ public sealed class OAuthAccountService
         _paths = paths;
         _vault = vault;
         _locator = locator;
+        _appServerFactory = appServerFactory;
         _metadataService = metadataService;
         _quotaParser = quotaParser;
         _operationGate = operationGate;
@@ -47,7 +50,7 @@ public sealed class OAuthAccountService
             AccountReadMetadata accountRead;
             QuotaParseResult? quotaResult = null;
 
-            await using (var client = await CodexAppServerClient.StartAsync(
+            await using (var client = await _appServerFactory.StartAsync(
                              installation.CodexExecutable,
                              loginDirectory,
                              _logger,
@@ -70,6 +73,10 @@ public sealed class OAuthAccountService
                 {
                     var limits = await client.ReadRateLimitsAsync(cancellationToken);
                     quotaResult = _quotaParser.Parse(limits, DateTimeOffset.UtcNow);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception exception)
                 {
