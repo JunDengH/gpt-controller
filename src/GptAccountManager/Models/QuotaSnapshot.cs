@@ -2,6 +2,13 @@ namespace GptAccountManager.Models;
 
 public sealed record QuotaSnapshot
 {
+    public double? FiveHourRemainingPercent { get; init; }
+    public double? FiveHourUsedPercent { get; init; }
+    public long? FiveHourWindowDurationMinutes { get; init; }
+    public DateTimeOffset? FiveHourResetsAt { get; init; }
+
+    // These original fields continue to represent the weekly window so existing
+    // local profile indexes can be deserialized without a migration.
     public double? RemainingPercent { get; init; }
     public double? UsedPercent { get; init; }
     public long? WindowDurationMinutes { get; init; }

@@ -1,7 +1,7 @@
 # GPT Account Manager
 
 一个面向 Windows 11 的本地优先 ChatGPT 账号管理器：通过官方 OAuth 添加账号，
-安全切换统一 ChatGPT 客户端的登录态，并显示每个账号的周限额、会员状态和公司归属。
+安全切换统一 ChatGPT 客户端的登录态，并显示每个账号的 5 小时与周限额、会员状态和公司归属。
 
 > 本项目是非官方开源工具，与 OpenAI 无隶属或背书关系。
 
@@ -10,7 +10,7 @@
 - 一键切换 Chat、Work、Codex 共用的账号登录态。
 - Windows DPAPI 加密保存非活动账号的认证档案。
 - 通过官方 Codex app-server 和浏览器 OAuth 添加账号，不收集密码。
-- 显示周限额剩余、重置时间、更新时间和数据新鲜度。
+- 并列显示 5 小时与周限额的剩余比例、进度和各自重置时间。
 - 显示 Free、Plus、Pro 5x、Pro 20x、Team、Business。
 - Team/Business 显示当前组织名称，其他套餐固定显示“个人账号”。
 - 切换前保存最新认证，失败时自动恢复并重启原账号。
@@ -59,7 +59,7 @@ WindowsApps 或重新分发该二进制。
 
 1. 启动应用并选择“导入当前账号”，保存 ChatGPT 当前登录状态。
 2. 选择“添加账号”，在官方浏览器页面登录另一个账号。
-3. 在账号卡片查看会员状态、归属和周限额。
+3. 在账号卡片查看会员状态、归属、5 小时限额和周限额。
 4. 点击“切换”。如果 ChatGPT 正在运行，确认关闭和重启。
 
 切换会中断正在运行的任务。程序默认取消，只有明确确认后才会关闭客户端。
@@ -77,7 +77,7 @@ dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 生成便携版：
 
 ```powershell
-.\scripts\package.ps1 -Version 1.1.4
+.\scripts\package.ps1 -Version 1.1.5
 ```
 
 如果 PATH 中存在 Inno Setup `ISCC.exe`，脚本还会生成安装包。
@@ -86,7 +86,8 @@ dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 ## 额度与会员数据
 
 额度通过官方 app-server 的 `account/rateLimits/read` 获取。程序优先使用
-`rateLimitsByLimitId.codex`，从约 10,080 分钟的窗口计算：
+`rateLimitsByLimitId.codex`，按窗口时长识别约 300 分钟的 5 小时限额和约
+10,080 分钟的周限额，并分别计算：
 
 ```text
 剩余百分比 = 100 - usedPercent

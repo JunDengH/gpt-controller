@@ -24,23 +24,34 @@ public sealed class AccountCardViewModel : ObservableObject
     public string PlanDisplayName => Profile.PlanDisplayName;
     public string OwnershipDisplayName => Profile.OwnershipDisplayName;
 
-    public double QuotaRemainingValue =>
+    public double FiveHourRemainingValue =>
+        Math.Clamp(Profile.Quota?.FiveHourRemainingPercent ?? 0, 0, 100);
+
+    public string FiveHourRemainingText =>
+        FormatRemaining(Profile.Quota?.FiveHourRemainingPercent);
+
+    public string FiveHourResetValueText =>
+        FormatReset(Profile.Quota?.FiveHourResetsAt);
+
+    public double WeeklyRemainingValue =>
         Math.Clamp(Profile.Quota?.RemainingPercent ?? 0, 0, 100);
 
-    public string QuotaRemainingText =>
-        Profile.Quota?.RemainingPercent is { } remaining
-            ? $"{Math.Round(remaining):0}%"
-            : "—";
+    public string WeeklyRemainingText =>
+        FormatRemaining(Profile.Quota?.RemainingPercent);
+
+    public string WeeklyResetValueText =>
+        FormatReset(Profile.Quota?.ResetsAt);
+
+    public double QuotaRemainingValue => WeeklyRemainingValue;
+
+    public string QuotaRemainingText => WeeklyRemainingText;
 
     public string QuotaResetText =>
         Profile.Quota?.ResetsAt is { } reset
             ? $"重置：{reset.ToLocalTime():M月d日 HH:mm}"
             : "重置时间暂不可用";
 
-    public string QuotaResetValueText =>
-        Profile.Quota?.ResetsAt is { } reset
-            ? $"{reset.ToLocalTime():M月d日 HH:mm}"
-            : "暂不可用";
+    public string QuotaResetValueText => WeeklyResetValueText;
 
     public string QuotaUpdatedText =>
         Profile.Quota is { } quota
@@ -90,6 +101,12 @@ public sealed class AccountCardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsOrganization));
         OnPropertyChanged(nameof(PlanDisplayName));
         OnPropertyChanged(nameof(OwnershipDisplayName));
+        OnPropertyChanged(nameof(FiveHourRemainingValue));
+        OnPropertyChanged(nameof(FiveHourRemainingText));
+        OnPropertyChanged(nameof(FiveHourResetValueText));
+        OnPropertyChanged(nameof(WeeklyRemainingValue));
+        OnPropertyChanged(nameof(WeeklyRemainingText));
+        OnPropertyChanged(nameof(WeeklyResetValueText));
         OnPropertyChanged(nameof(QuotaRemainingValue));
         OnPropertyChanged(nameof(QuotaRemainingText));
         OnPropertyChanged(nameof(QuotaResetText));
@@ -99,4 +116,14 @@ public sealed class AccountCardViewModel : ObservableObject
         OnPropertyChanged(nameof(QuotaStatusText));
         OnPropertyChanged(nameof(HasFreshQuota));
     }
+
+    private static string FormatRemaining(double? remaining) =>
+        remaining is { } value
+            ? $"{Math.Round(value):0}%"
+            : "—";
+
+    private static string FormatReset(DateTimeOffset? reset) =>
+        reset is { } value
+            ? $"{value.ToLocalTime():M月d日 HH:mm}"
+            : "暂不可用";
 }
