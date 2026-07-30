@@ -243,7 +243,7 @@
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                               Text="安全切换 ChatGPT 账号并查看每周额度" />
+                                               Text="安全切换 ChatGPT 账号并查看 5 小时与每周额度" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1"
@@ -520,73 +520,158 @@
                                                                 Margin="0,14,0,0"
                                                                 Background="{StaticResource BorderSubtleBrush}" />
 
-                                                        <StackPanel Grid.Row="5" Margin="0,13,0,0">
-                                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
-                                                                       Text="周剩余" />
-                                                            <TextBlock Margin="0,3,0,0"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='25,30'}"
-                                                                       FontWeight="SemiBold"
-                                                                       Text="{Binding QuotaRemainingText}" />
-                                                        </StackPanel>
+                                                        <Grid Grid.Row="5" Margin="0,13,0,0">
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
 
-                                                        <ProgressBar Grid.Row="6"
-                                                                     Margin="0,7,0,0"
-                                                                     Maximum="100"
-                                                                     Value="{Binding QuotaRemainingValue, Mode=OneWay}" />
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock VerticalAlignment="Center"
+                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="使用额度" />
+                                                                <Border Grid.Column="1"
+                                                                        Padding="9,4"
+                                                                        Background="#353638"
+                                                                        CornerRadius="10">
+                                                                    <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
+                                                                               Text="{Binding QuotaStatusText}" />
+                                                                </Border>
+                                                            </Grid>
 
-                                                        <Grid Grid.Row="7" Margin="0,14,0,0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="28" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <iconPacks:PackIconMaterial Width="19"
-                                                                                        Height="19"
-                                                                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                                                                        Kind="CalendarOutline" />
-                                                            <TextBlock Grid.Column="1"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
-                                                                       Text="重置时间" />
-                                                            <TextBlock Grid.Column="2"
-                                                                       Margin="14,0,0,0"
-                                                                       HorizontalAlignment="Right"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
-                                                                       Text="{Binding QuotaResetValueText}" />
-                                                        </Grid>
+                                                            <Grid Grid.Row="1" Margin="0,9,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="8" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
 
-                                                        <Grid Grid.Row="8" Margin="0,10,0,0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="28" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <iconPacks:PackIconMaterial Width="19"
-                                                                                        Height="19"
-                                                                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                                                                        Kind="ClockOutline" />
-                                                            <TextBlock Grid.Column="1"
-                                                                       VerticalAlignment="Top"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
-                                                                       Text="更新时间" />
-                                                            <StackPanel Grid.Column="2"
-                                                                        Margin="14,0,0,0"
-                                                                        HorizontalAlignment="Right">
-                                                                <TextBlock HorizontalAlignment="Right"
-                                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                                            FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
-                                                                            Text="{Binding QuotaUpdatedValueText}" />
-                                                                <TextBlock Margin="0,2,0,0"
-                                                                           HorizontalAlignment="Right"
+                                                                <Border Padding="12,11"
+                                                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                                                        BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="14">
+                                                                    <Grid>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <iconPacks:PackIconMaterial Width="15"
+                                                                                                        Height="15"
+                                                                                                        VerticalAlignment="Center"
+                                                                                                        Foreground="{StaticResource AccentBrush}"
+                                                                                                        Kind="TimerSand" />
+                                                                            <TextBlock Margin="6,0,0,0"
+                                                                                       VerticalAlignment="Center"
+                                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                                                       Text="5 小时" />
+                                                                        </StackPanel>
+                                                                        <TextBlock Grid.Row="1"
+                                                                                   Margin="0,4,0,0"
+                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='23,27'}"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Text="{Binding FiveHourRemainingText}" />
+                                                                        <ProgressBar Grid.Row="2"
+                                                                                     Height="7"
+                                                                                     Margin="0,7,0,0"
+                                                                                     Foreground="{StaticResource AccentBrush}"
+                                                                                     Maximum="100"
+                                                                                     Value="{Binding FiveHourRemainingValue, Mode=OneWay}" />
+                                                                        <TextBlock Grid.Row="3"
+                                                                                   Margin="0,7,0,0"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9,10.5'}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   ToolTip="{Binding FiveHourResetValueText}">
+                                                                            <Run Text="重置 " />
+                                                                            <Run Text="{Binding FiveHourResetValueText, Mode=OneWay}" />
+                                                                        </TextBlock>
+                                                                    </Grid>
+                                                                </Border>
+
+                                                                <Border Grid.Column="2"
+                                                                        Padding="12,11"
+                                                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                                                        BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="14">
+                                                                    <Grid>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <iconPacks:PackIconMaterial Width="15"
+                                                                                                        Height="15"
+                                                                                                        VerticalAlignment="Center"
+                                                                                                        Foreground="#D4D5D8"
+                                                                                                        Kind="CalendarWeek" />
+                                                                            <TextBlock Margin="6,0,0,0"
+                                                                                       VerticalAlignment="Center"
+                                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
+                                                                                       Text="每周" />
+                                                                        </StackPanel>
+                                                                        <TextBlock Grid.Row="1"
+                                                                                   Margin="0,4,0,0"
+                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='23,27'}"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Text="{Binding WeeklyRemainingText}" />
+                                                                        <ProgressBar Grid.Row="2"
+                                                                                     Height="7"
+                                                                                     Margin="0,7,0,0"
+                                                                                     Foreground="#D4D5D8"
+                                                                                     Maximum="100"
+                                                                                     Value="{Binding WeeklyRemainingValue, Mode=OneWay}" />
+                                                                        <TextBlock Grid.Row="3"
+                                                                                   Margin="0,7,0,0"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9,10.5'}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   ToolTip="{Binding WeeklyResetValueText}">
+                                                                            <Run Text="重置 " />
+                                                                            <Run Text="{Binding WeeklyResetValueText, Mode=OneWay}" />
+                                                                        </TextBlock>
+                                                                    </Grid>
+                                                                </Border>
+                                                            </Grid>
+
+                                                            <Grid Grid.Row="2" Margin="2,9,2,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <iconPacks:PackIconMaterial Width="14"
+                                                                                            Height="14"
+                                                                                            VerticalAlignment="Center"
+                                                                                            Foreground="{StaticResource TextMutedBrush}"
+                                                                                            Kind="ClockOutline" />
+                                                                <TextBlock Grid.Column="1"
+                                                                           Margin="6,0,0,0"
+                                                                           VerticalAlignment="Center"
                                                                            Foreground="{StaticResource TextMutedBrush}"
-                                                                            FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                            Text="{Binding QuotaStatusText}" />
-                                                            </StackPanel>
+                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
+                                                                           Text="数据更新" />
+                                                                <TextBlock Grid.Column="2"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
+                                                                           Text="{Binding QuotaUpdatedValueText}" />
+                                                            </Grid>
                                                         </Grid>
 
                                                         <Border Grid.Row="10"
@@ -1004,7 +1089,7 @@
                                         <TextBlock VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                   Text="GPT Account Manager v1.1.4 · 本地优先 · 无遥测" />
+                                                   Text="GPT Account Manager v1.1.5 · 本地优先 · 无遥测" />
                                         <Button HorizontalAlignment="Right"
                                                 Command="{Binding SaveSettingsCommand}"
                                                 Style="{StaticResource ResponsivePrimaryButtonStyle}">

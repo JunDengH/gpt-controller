@@ -703,7 +703,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 IsActive = true,
                 MembershipPlan = MembershipPlan.Pro20x,
                 Ownership = AccountOwnership.Personal,
-                Quota = CreatePreviewQuota(72, now, reset, QuotaStatus.Fresh)
+                Quota = CreatePreviewQuota(
+                    86,
+                    72,
+                    now,
+                    now.AddHours(3),
+                    reset,
+                    QuotaStatus.Fresh)
             },
             new AccountProfile
             {
@@ -715,8 +721,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     "preview-organization",
                     "示例科技"),
                 Quota = CreatePreviewQuota(
+                    54,
                     41,
                     now.AddHours(-5),
+                    now.AddHours(1),
                     reset,
                     QuotaStatus.Stale)
             },
@@ -728,8 +736,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 MembershipPlan = MembershipPlan.Plus,
                 Ownership = AccountOwnership.Personal,
                 Quota = CreatePreviewQuota(
+                    100,
                     89,
                     now.AddHours(-15),
+                    now.AddHours(4),
                     reset,
                     QuotaStatus.Fresh)
             }
@@ -746,16 +756,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     private static QuotaSnapshot CreatePreviewQuota(
-        double remainingPercent,
+        double fiveHourRemainingPercent,
+        double weeklyRemainingPercent,
         DateTimeOffset fetchedAt,
-        DateTimeOffset resetsAt,
+        DateTimeOffset fiveHourResetsAt,
+        DateTimeOffset weeklyResetsAt,
         QuotaStatus status) =>
         new()
         {
-            RemainingPercent = remainingPercent,
-            UsedPercent = 100 - remainingPercent,
+            FiveHourRemainingPercent = fiveHourRemainingPercent,
+            FiveHourUsedPercent = 100 - fiveHourRemainingPercent,
+            FiveHourWindowDurationMinutes = 300,
+            FiveHourResetsAt = fiveHourResetsAt,
+            RemainingPercent = weeklyRemainingPercent,
+            UsedPercent = 100 - weeklyRemainingPercent,
             WindowDurationMinutes = 10_080,
-            ResetsAt = resetsAt,
+            ResetsAt = weeklyResetsAt,
             FetchedAt = fetchedAt,
             Status = status
         };

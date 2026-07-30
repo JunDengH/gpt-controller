@@ -39,6 +39,37 @@ public sealed class AccountCardViewModelTests
         Assert.Contains(nameof(AccountCardViewModel.IsRefreshing), changedProperties);
     }
 
+    [Fact]
+    public void ExposesFiveHourAndWeeklyQuotaSeparately()
+    {
+        var card = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Test",
+            Email = "test@example.com",
+            AccountId = "account",
+            Ownership = AccountOwnership.Personal,
+            Quota = new QuotaSnapshot
+            {
+                FiveHourRemainingPercent = 82.4,
+                FiveHourResetsAt =
+                    new DateTimeOffset(2026, 7, 30, 13, 0, 0, TimeSpan.Zero),
+                RemainingPercent = 44.6,
+                ResetsAt =
+                    new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero),
+                FetchedAt = DateTimeOffset.UtcNow,
+                Status = QuotaStatus.Fresh
+            }
+        });
+
+        Assert.Equal(82.4, card.FiveHourRemainingValue);
+        Assert.Equal("82%", card.FiveHourRemainingText);
+        Assert.Equal(44.6, card.WeeklyRemainingValue);
+        Assert.Equal("45%", card.WeeklyRemainingText);
+        Assert.NotEqual(
+            card.FiveHourResetValueText,
+            card.WeeklyResetValueText);
+    }
+
     private static AccountCardViewModel CreateCard(
         QuotaStatus status,
         string? errorCode) =>

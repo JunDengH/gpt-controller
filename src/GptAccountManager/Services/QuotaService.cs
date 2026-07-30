@@ -431,7 +431,9 @@ public sealed class QuotaService
         }
 
         var previous = profile.Quota;
-        var failedQuota = previous is { RemainingPercent: not null }
+        var failedQuota = previous is
+            { RemainingPercent: not null } or
+            { FiveHourRemainingPercent: not null }
             ? previous with
             {
                 Status = status,

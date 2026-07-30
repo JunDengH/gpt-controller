@@ -8,8 +8,10 @@ public sealed record QuotaParseResult(QuotaSnapshot Snapshot, string? PlanType);
 
 public sealed class QuotaParser
 {
+    private const long FiveHourMinutes = 300;
     private const long WeeklyMinutes = 10_080;
     private const long MinimumLongWindowMinutes = 1_440;
+    private const double FiveHourTolerance = 0.20;
     private const double WeeklyTolerance = 0.20;
 
     public QuotaParseResult Parse(JsonElement result, DateTimeOffset now)
@@ -18,7 +20,7 @@ public sealed class QuotaParser
         if (bucket is null)
         {
             return new QuotaParseResult(
-                QuotaSnapshot.Unavailable("weekly_window_missing"),
+                QuotaSnapshot.Unavailable("quota_windows_missing"),
                 null);
         }
 
@@ -29,6 +31,15 @@ public sealed class QuotaParser
             .Where(value => value is not null)
             .Cast<ParsedWindow>()
             .ToList();
+
+        var fiveHour = windows
+            .Where(window =>
+                window.DurationMinutes.HasValue &&
+                Math.Abs(window.DurationMinutes.Value - FiveHourMinutes) <=
+                FiveHourMinutes * FiveHourTolerance)
+            .OrderBy(window =>
+                Math.Abs(window.DurationMinutes!.Value - FiveHourMinutes))
+            .FirstOrDefault();
 
         var weekly = windows
             .Where(window =>
@@ -41,26 +52,39 @@ public sealed class QuotaParser
                 .OrderByDescending(window => window.DurationMinutes)
                 .FirstOrDefault();
 
-        if (weekly is null)
+        if (fiveHour is null && weekly is null)
         {
             return new QuotaParseResult(
                 new QuotaSnapshot
                 {
                     FetchedAt = now,
                     Status = QuotaStatus.Unavailable,
-                    ErrorCode = "weekly_window_missing"
+                    ErrorCode = "quota_windows_missing"
                 },
                 ReadString(bucket.Value, "planType"));
         }
 
-        var used = Math.Clamp(weekly.UsedPercent, 0, 100);
+        var fiveHourUsed = fiveHour is null
+            ? (double?)null
+            : Math.Clamp(fiveHour.UsedPercent, 0, 100);
+        var weeklyUsed = weekly is null
+            ? (double?)null
+            : Math.Clamp(weekly.UsedPercent, 0, 100);
         return new QuotaParseResult(
             new QuotaSnapshot
             {
-                UsedPercent = used,
-                RemainingPercent = Math.Clamp(100 - used, 0, 100),
-                WindowDurationMinutes = weekly.DurationMinutes,
-                ResetsAt = weekly.ResetsAt,
+                FiveHourUsedPercent = fiveHourUsed,
+                FiveHourRemainingPercent = fiveHourUsed.HasValue
+                    ? Math.Clamp(100 - fiveHourUsed.Value, 0, 100)
+                    : null,
+                FiveHourWindowDurationMinutes = fiveHour?.DurationMinutes,
+                FiveHourResetsAt = fiveHour?.ResetsAt,
+                UsedPercent = weeklyUsed,
+                RemainingPercent = weeklyUsed.HasValue
+                    ? Math.Clamp(100 - weeklyUsed.Value, 0, 100)
+                    : null,
+                WindowDurationMinutes = weekly?.DurationMinutes,
+                ResetsAt = weekly?.ResetsAt,
                 FetchedAt = now,
                 Status = QuotaStatus.Fresh
             },
