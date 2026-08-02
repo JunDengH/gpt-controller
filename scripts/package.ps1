@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.1.5",
+    [string]$Version,
     [string]$Configuration = "Release",
     [string]$OutputRoot = "artifacts"
 )
@@ -7,16 +7,28 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+. (Join-Path $PSScriptRoot "version.ps1")
+$sourceVersion = Get-RepositoryVersion -RepositoryRoot $repoRoot
+Assert-SemanticVersion -Version $sourceVersion
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = $sourceVersion
+}
+else {
+    Assert-SemanticVersion -Version $Version
+}
+
 $artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 $publishDirectory = Join-Path $artifactRoot "publish"
-$portableArchive = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64.zip"
+$helperPublishDirectory = Join-Path $artifactRoot "helper-publish"
+$portableArchive = Join-Path $artifactRoot "GptController-$Version-win-x64.zip"
 $portableHash = "$portableArchive.sha256"
-$installer = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64-setup.exe"
+$installer = Join-Path $artifactRoot "GptController-$Version-win-x64-setup.exe"
 $installerHashPath = "$installer.sha256"
 
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 foreach ($stalePath in @(
     $publishDirectory
+    $helperPublishDirectory
     $portableArchive
     $portableHash
     $installer
@@ -27,13 +39,34 @@ foreach ($stalePath in @(
     }
 }
 
-dotnet publish (Join-Path $repoRoot "src\GptAccountManager\GptAccountManager.csproj") `
+dotnet publish (Join-Path $repoRoot "src\GptController\GptController.csproj") `
     -c $Configuration `
     -r win-x64 `
     --self-contained true `
     -p:PublishProfile=win-x64 `
     -p:Version=$Version `
     -o $publishDirectory
+if ($LASTEXITCODE -ne 0) {
+    throw "GPT Controller publish failed with exit code $LASTEXITCODE."
+}
+
+dotnet publish (Join-Path $repoRoot "src\GptController.CredentialHelper\GptController.CredentialHelper.csproj") `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:Version=$Version `
+    -o $helperPublishDirectory
+if ($LASTEXITCODE -ne 0) {
+    throw "Credential helper publish failed with exit code $LASTEXITCODE."
+}
+
+$helperExecutable = Join-Path $helperPublishDirectory "GptController.CredentialHelper.exe"
+if (-not (Test-Path -LiteralPath $helperExecutable -PathType Leaf)) {
+    throw "Credential helper publish did not produce the expected executable."
+}
+
+Copy-Item -LiteralPath $helperExecutable -Destination $publishDirectory -Force
 
 Compress-Archive -Path (Join-Path $publishDirectory "*") -DestinationPath $portableArchive
 $hash = (Get-FileHash -LiteralPath $portableArchive -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -64,7 +97,7 @@ else {
 }
 
 if ($isccPath) {
-    & $isccPath "/DMyAppVersion=$Version" (Join-Path $repoRoot "installer\GptAccountManager.iss")
+    & $isccPath "/DMyAppVersion=$Version" (Join-Path $repoRoot "installer\GptController.iss")
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compiler failed with exit code $LASTEXITCODE."
     }
@@ -86,4 +119,7 @@ Write-Output "Created $portableHash"
 
 if (Test-Path -LiteralPath $publishDirectory) {
     Remove-Item -LiteralPath $publishDirectory -Recurse -Force
+}
+if (Test-Path -LiteralPath $helperPublishDirectory) {
+    Remove-Item -LiteralPath $helperPublishDirectory -Recurse -Force
 }

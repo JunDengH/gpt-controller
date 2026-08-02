@@ -1,6 +1,6 @@
 # Research and interoperability references
 
-GPT Account Manager is an independent clean-room implementation. It does not
+GPT Controller is an independent clean-room implementation. It does not
 vendor source code from the projects below, but their public documentation and
 implementations informed interoperability behavior:
 

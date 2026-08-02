@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/GptController.CredentialHelper/GptController.CredentialHelper.csproj" />
+  <Project Path="src/GptController.Credentials/GptController.Credentials.csproj" />
+  <Project Path="src/GptController/GptController.csproj" />
+  <Project Path="tests/GptController.Tests/GptController.Tests.csproj" />
+</Solution>
