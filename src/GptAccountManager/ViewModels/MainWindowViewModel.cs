@@ -103,6 +103,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public event EventHandler? AccountsChanged;
 
+    public string ApplicationVersion => ApplicationInfo.Version;
+
     public bool IsAccountsPage => !_isSettingsPage;
 
     public bool IsSettingsPage => _isSettingsPage;

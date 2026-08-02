@@ -10,7 +10,6 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyName>GptAccountManager</AssemblyName>
     <RootNamespace>GptAccountManager</RootNamespace>
-    <Version>1.1.5</Version>
     <Authors>GPT Account Manager contributors</Authors>
     <Description>Local-first account switcher and quota monitor for the ChatGPT Windows app.</Description>
   </PropertyGroup>

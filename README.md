@@ -74,14 +74,17 @@ dotnet build GptAccountManager.slnx -c Release
 dotnet run --project src\GptAccountManager\GptAccountManager.csproj
 ```
 
-生成便携版：
+生成便携版和安装包。版本号统一读取仓库根目录的 `Version.props`：
 
 ```powershell
-.\scripts\package.ps1 -Version 1.1.5
+.\scripts\package.ps1
 ```
 
 如果 PATH 中存在 Inno Setup `ISCC.exe`，脚本还会生成安装包。
 脚本也会从 Windows 卸载注册表定位自定义目录中的 Inno Setup。
+
+版本号、分支和标签的发布规范见 [RELEASING.md](RELEASING.md)，版本变更记录见
+[CHANGELOG.md](CHANGELOG.md)。
 
 ## 额度与会员数据
 

@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.5"
+  #define MyAppVersion "0.0.0-dev"
 #endif
 
 #define MyAppName "GPT Account Manager"

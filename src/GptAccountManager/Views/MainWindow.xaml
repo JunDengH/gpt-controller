@@ -1088,8 +1088,9 @@
                                     <Grid Margin="2,22,2,30">
                                         <TextBlock VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                   Text="GPT Account Manager v1.1.5 · 本地优先 · 无遥测" />
+                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}">
+                                            <Run Text="GPT Account Manager v" /><Run Text="{Binding ApplicationVersion}" /><Run Text=" · 本地优先 · 无遥测" />
+                                        </TextBlock>
                                         <Button HorizontalAlignment="Right"
                                                 Command="{Binding SaveSettingsCommand}"
                                                 Style="{StaticResource ResponsivePrimaryButtonStyle}">

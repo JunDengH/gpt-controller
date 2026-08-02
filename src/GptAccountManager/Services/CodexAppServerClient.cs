@@ -255,7 +255,7 @@ public sealed class CodexAppServerClient : ICodexAppServerClient
                 {
                     name = "gpt-account-manager",
                     title = "GPT Account Manager",
-                    version = "1.1.5"
+                    version = ApplicationInfo.Version
                 },
                 capabilities = new
                 {

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.1.5",
+    [string]$Version,
     [string]$Configuration = "Release",
     [string]$OutputRoot = "artifacts"
 )
@@ -7,6 +7,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+. (Join-Path $PSScriptRoot "version.ps1")
+$sourceVersion = Get-RepositoryVersion -RepositoryRoot $repoRoot
+Assert-SemanticVersion -Version $sourceVersion
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = $sourceVersion
+}
+else {
+    Assert-SemanticVersion -Version $Version
+}
+
 $artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 $publishDirectory = Join-Path $artifactRoot "publish"
 $portableArchive = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64.zip"
