@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <AssemblyName>GptController</AssemblyName>
+    <RootNamespace>GptController</RootNamespace>
+    <Product>GPT Controller</Product>
+    <AssemblyTitle>GPT Controller</AssemblyTitle>
+    <Authors>GPT Controller contributors</Authors>
+    <Description>Local-first ChatGPT and DeepSeek connection controller for Codex on Windows.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />
+    <PackageReference Include="Tomlyn" Version="2.10.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GptController.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GptController.Credentials\GptController.Credentials.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="Assets\AppIcon.png" />
+  </ItemGroup>
+
+</Project>

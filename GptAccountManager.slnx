@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="src/GptAccountManager.CredentialHelper/GptAccountManager.CredentialHelper.csproj" />
-  <Project Path="src/GptAccountManager.Credentials/GptAccountManager.Credentials.csproj" />
-  <Project Path="src/GptAccountManager/GptAccountManager.csproj" />
-  <Project Path="tests/GptAccountManager.Tests/GptAccountManager.Tests.csproj" />
-</Solution>

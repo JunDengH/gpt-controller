@@ -1,4 +1,4 @@
-# GPT Account Manager
+# GPT Controller
 
 一个面向 Windows 11 的本地优先 Codex 连接管理器：通过官方 OAuth 管理 ChatGPT
 账号，也可使用 DeepSeek V4 Flash 的 Responses API，并在统一界面安全切换提供商。
@@ -34,7 +34,7 @@
 保存的账号档案位于：
 
 ```text
-%LOCALAPPDATA%\GptAccountManager
+%LOCALAPPDATA%\GptController
 ```
 
 ChatGPT 与 DeepSeek 凭据文件都使用 DPAPI `CurrentUser` 加密。元数据（昵称、邮箱、
@@ -47,6 +47,15 @@ ChatGPT 与 DeepSeek 凭据文件都使用 DPAPI `CurrentUser` 加密。元数�
 
 必须保持官方可读格式，因此不会由本软件额外加密。
 
+从 1.1.x 首次升级时，程序会先验证旧数据并将凭据重新加密到新目录。原目录：
+
+```text
+%LOCALAPPDATA%\GptAccountManager
+```
+
+会完整保留作为回退副本，本版本不会自动删除。迁移失败时程序会停止启动，并保持旧
+目录不变；运行缓存、日志和临时文件不会迁移。
+
 本软件不会复制 ChatGPT Chromium Cookies、浏览器用户目录、项目、插件或本地任务
 历史。本地项目数据在账号之间共用，云端数据由切换后的官方账号隔离。
 
@@ -56,7 +65,7 @@ MSIX `WindowsApps` 内的 `codex.exe` 不允许普通外部程序直接执行。
 已安装的官方客户端版本，将该开源运行时的当前二进制副本复制到当前用户专属的：
 
 ```text
-%LOCALAPPDATA%\GptAccountManager\runtime
+%LOCALAPPDATA%\GptController\runtime
 ```
 
 副本按源文件版本和 SHA-256 标识，仅用于启动官方 app-server；应用不会修改
@@ -82,9 +91,9 @@ WindowsApps 或重新分发该二进制。
 需要 .NET 10 SDK：
 
 ```powershell
-dotnet restore GptAccountManager.slnx
-dotnet build GptAccountManager.slnx -c Release
-dotnet run --project src\GptAccountManager\GptAccountManager.csproj
+dotnet restore GptController.slnx
+dotnet build GptController.slnx -c Release
+dotnet run --project src\GptController\GptController.csproj
 ```
 
 生成便携版和安装包。版本号统一读取仓库根目录的 `Version.props`：

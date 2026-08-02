@@ -20,9 +20,9 @@ else {
 $artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 $publishDirectory = Join-Path $artifactRoot "publish"
 $helperPublishDirectory = Join-Path $artifactRoot "helper-publish"
-$portableArchive = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64.zip"
+$portableArchive = Join-Path $artifactRoot "GptController-$Version-win-x64.zip"
 $portableHash = "$portableArchive.sha256"
-$installer = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64-setup.exe"
+$installer = Join-Path $artifactRoot "GptController-$Version-win-x64-setup.exe"
 $installerHashPath = "$installer.sha256"
 
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
@@ -39,23 +39,29 @@ foreach ($stalePath in @(
     }
 }
 
-dotnet publish (Join-Path $repoRoot "src\GptAccountManager\GptAccountManager.csproj") `
+dotnet publish (Join-Path $repoRoot "src\GptController\GptController.csproj") `
     -c $Configuration `
     -r win-x64 `
     --self-contained true `
     -p:PublishProfile=win-x64 `
     -p:Version=$Version `
     -o $publishDirectory
+if ($LASTEXITCODE -ne 0) {
+    throw "GPT Controller publish failed with exit code $LASTEXITCODE."
+}
 
-dotnet publish (Join-Path $repoRoot "src\GptAccountManager.CredentialHelper\GptAccountManager.CredentialHelper.csproj") `
+dotnet publish (Join-Path $repoRoot "src\GptController.CredentialHelper\GptController.CredentialHelper.csproj") `
     -c $Configuration `
     -r win-x64 `
     --self-contained true `
     -p:PublishSingleFile=true `
     -p:Version=$Version `
     -o $helperPublishDirectory
+if ($LASTEXITCODE -ne 0) {
+    throw "Credential helper publish failed with exit code $LASTEXITCODE."
+}
 
-$helperExecutable = Join-Path $helperPublishDirectory "GptAccountManager.CredentialHelper.exe"
+$helperExecutable = Join-Path $helperPublishDirectory "GptController.CredentialHelper.exe"
 if (-not (Test-Path -LiteralPath $helperExecutable -PathType Leaf)) {
     throw "Credential helper publish did not produce the expected executable."
 }
@@ -91,7 +97,7 @@ else {
 }
 
 if ($isccPath) {
-    & $isccPath "/DMyAppVersion=$Version" (Join-Path $repoRoot "installer\GptAccountManager.iss")
+    & $isccPath "/DMyAppVersion=$Version" (Join-Path $repoRoot "installer\GptController.iss")
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compiler failed with exit code $LASTEXITCODE."
     }

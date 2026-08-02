@@ -27,13 +27,13 @@ jobs:
         run: ./scripts/verify-version.ps1
 
       - name: Restore
-        run: dotnet restore GptAccountManager.slnx
+        run: dotnet restore GptController.slnx
 
       - name: Build
-        run: dotnet build GptAccountManager.slnx -c Release --no-restore
+        run: dotnet build GptController.slnx -c Release --no-restore
 
       - name: Test
-        run: dotnet test GptAccountManager.slnx -c Release --no-build
+        run: dotnet test GptController.slnx -c Release --no-build
 
       - name: Install Inno Setup
         shell: pwsh
@@ -41,7 +41,13 @@ jobs:
 
       - name: Package Windows builds
         shell: pwsh
-        run: ./scripts/package.ps1 -Version "0.0.0-ci"
+        run: ./scripts/package.ps1
+
+      - name: Test installer upgrade from v1.1.5
+        shell: pwsh
+        env:
+          GPT_CONTROLLER_SMOKE_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./scripts/test-installer-upgrade.ps1
 
       - name: Verify release hashes
         shell: pwsh

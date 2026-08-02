@@ -49,13 +49,13 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore GptAccountManager.slnx
+        run: dotnet restore GptController.slnx
 
       - name: Build
-        run: dotnet build GptAccountManager.slnx -c Release --no-restore
+        run: dotnet build GptController.slnx -c Release --no-restore
 
       - name: Test
-        run: dotnet test GptAccountManager.slnx -c Release --no-build
+        run: dotnet test GptController.slnx -c Release --no-build
 
       - name: Install Inno Setup
         shell: pwsh
@@ -81,4 +81,4 @@ jobs:
           gh release create "${{ github.ref_name }}" @assets `
             --generate-notes `
             --verify-tag `
-            --title "GPT Account Manager ${{ steps.version.outputs.value }}"
+            --title "GPT Controller ${{ steps.version.outputs.value }}"

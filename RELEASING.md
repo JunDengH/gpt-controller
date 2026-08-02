@@ -18,9 +18,9 @@ This repository uses Semantic Versioning and keeps the release version in one so
 
    ```powershell
    .\scripts\verify-version.ps1
-   dotnet restore GptAccountManager.slnx
-   dotnet build GptAccountManager.slnx -c Release --no-restore
-   dotnet test GptAccountManager.slnx -c Release --no-build
+   dotnet restore GptController.slnx
+   dotnet build GptController.slnx -c Release --no-restore
+   dotnet test GptController.slnx -c Release --no-build
    .\scripts\package.ps1
    .\scripts\verify-hashes.ps1
    ```
@@ -31,7 +31,7 @@ This repository uses Semantic Versioning and keeps the release version in one so
    ```powershell
    git switch main
    git pull --ff-only origin main
-   git tag -a v1.2.3 -m "GPT Account Manager 1.2.3"
+   git tag -a v1.2.3 -m "GPT Controller 1.2.3"
    git push origin v1.2.3
    ```
 
