@@ -1,5 +1,11 @@
 namespace GptAccountManager.Models;
 
+public enum ConnectionProvider
+{
+    ChatGpt,
+    DeepSeek
+}
+
 public enum MembershipPlan
 {
     Unknown,
@@ -31,6 +37,7 @@ public enum SwitchStatus
     Cancelled,
     ProcessBlocked,
     AuthenticationInvalid,
+    ConfigurationConflict,
     LaunchFailed,
     RolledBack,
     Failed
@@ -48,6 +55,7 @@ public enum SwitchStage
     ValidatingCredential,
     StoppingChatGpt,
     CheckingBlockers,
+    ConfiguringProvider,
     WritingCredential,
     LaunchingChatGpt,
     Completed

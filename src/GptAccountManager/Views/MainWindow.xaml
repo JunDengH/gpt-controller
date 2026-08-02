@@ -50,6 +50,15 @@
             <Setter Property="FontSize"
                     Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='11,14'}" />
         </Style>
+
+        <Style x:Key="ProviderActionLabelStyle" TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDeepSeek}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <shell:WindowChrome.WindowChrome>
@@ -84,6 +93,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal"
@@ -99,8 +109,21 @@
                                    Text="GPT Account Manager" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
+                    <Border Grid.Column="1"
+                            Margin="0,0,12,0"
+                            Padding="12,7"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource SurfaceRaisedBrush}"
+                            BorderBrush="{StaticResource BorderSubtleBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12">
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11.5"
+                                   Text="{Binding CurrentProviderText}" />
+                    </Border>
+
+                    <StackPanel Grid.Column="2"
+                                 Orientation="Horizontal"
                                 shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <Button Style="{StaticResource TitleBarButtonStyle}"
                                 Click="Minimize_Click"
@@ -167,7 +190,7 @@
 
                                 <Button Grid.Row="0"
                                         Command="{Binding ShowAccountsCommand}"
-                                        ToolTip="账号">
+                                        ToolTip="连接">
                                     <Button.Style>
                                         <Style TargetType="Button"
                                                BasedOn="{StaticResource NavIconButtonStyle}">
@@ -239,11 +262,11 @@
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='25,29'}"
                                                FontWeight="SemiBold"
-                                               Text="账号管理" />
+                                               Text="连接管理" />
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                               Text="安全切换 ChatGPT 账号并查看 5 小时与每周额度" />
+                                               Text="统一管理 ChatGPT OAuth 账号与 DeepSeek Responses API" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1"
@@ -264,9 +287,20 @@
                                         </StackPanel>
                                     </Button>
                                     <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='138,158'}"
-                                            MinHeight="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}"
-                                            Command="{Binding AddAccountCommand}"
-                                            Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                             MinHeight="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}"
+                                             Click="AddConnection_Click"
+                                             Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                                <MenuItem Header="添加 ChatGPT OAuth"
+                                                          Command="{Binding AddAccountCommand}" />
+                                                <MenuItem Header="导入当前 ChatGPT"
+                                                          Command="{Binding ImportCurrentCommand}" />
+                                                <Separator />
+                                                <MenuItem Header="{Binding DeepSeekMenuLabel}"
+                                                          Command="{Binding ConfigureDeepSeekCommand}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
                                         <StackPanel Orientation="Horizontal">
                                             <iconPacks:PackIconMaterial Width="21"
                                                                         Height="21"
@@ -274,7 +308,7 @@
                                                                         Kind="Plus" />
                                             <TextBlock VerticalAlignment="Center"
                                                        FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                                       Text="添加账号" />
+                                                       Text="添加连接" />
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -383,14 +417,33 @@
                                                                                             Height="24"
                                                                                             HorizontalAlignment="Center"
                                                                                             VerticalAlignment="Center"
-                                                                                            Foreground="#F1F1F2"
-                                                                                            Kind="AccountOutline" />
+                                                                                            Foreground="#F1F1F2">
+                                                                    <iconPacks:PackIconMaterial.Style>
+                                                                        <Style TargetType="iconPacks:PackIconMaterial">
+                                                                            <Setter Property="Kind" Value="AccountOutline" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsDeepSeek}" Value="True">
+                                                                                    <Setter Property="Kind" Value="Api" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </iconPacks:PackIconMaterial.Style>
+                                                                </iconPacks:PackIconMaterial>
                                                             </Border>
                                                             <TextBlock Margin="14,0,0,0"
                                                                        VerticalAlignment="Center"
                                                                        FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='18,21'}"
                                                                        FontWeight="SemiBold"
                                                                        Text="{Binding Nickname}" />
+                                                            <Border Margin="10,0,0,0"
+                                                                    Padding="8,3"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="#353638"
+                                                                    CornerRadius="9">
+                                                                <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                                                                           FontSize="10.5"
+                                                                           Text="{Binding ProviderDisplayName}" />
+                                                            </Border>
                                                         </StackPanel>
 
                                                         <Grid Grid.Row="1" Margin="0,14,0,0">
@@ -535,7 +588,7 @@
                                                                 <TextBlock VerticalAlignment="Center"
                                                                            FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
                                                                            FontWeight="SemiBold"
-                                                                           Text="使用额度" />
+                                                                           Text="{Binding MetricsTitle}" />
                                                                 <Border Grid.Column="1"
                                                                         Padding="9,4"
                                                                         Background="#353638"
@@ -575,7 +628,7 @@
                                                                                        VerticalAlignment="Center"
                                                                                        Foreground="{StaticResource TextSecondaryBrush}"
                                                                                        FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                                       Text="5 小时" />
+                                                                                       Text="{Binding PrimaryMetricLabel}" />
                                                                         </StackPanel>
                                                                         <TextBlock Grid.Row="1"
                                                                                    Margin="0,4,0,0"
@@ -587,16 +640,25 @@
                                                                                      Margin="0,7,0,0"
                                                                                      Foreground="{StaticResource AccentBrush}"
                                                                                      Maximum="100"
-                                                                                     Value="{Binding FiveHourRemainingValue, Mode=OneWay}" />
+                                                                                     Value="{Binding FiveHourRemainingValue, Mode=OneWay}">
+                                                                            <ProgressBar.Style>
+                                                                                <Style TargetType="ProgressBar">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsDeepSeek}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </ProgressBar.Style>
+                                                                        </ProgressBar>
                                                                         <TextBlock Grid.Row="3"
                                                                                    Margin="0,7,0,0"
                                                                                    Foreground="{StaticResource TextMutedBrush}"
                                                                                    FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9,10.5'}"
                                                                                    TextTrimming="CharacterEllipsis"
-                                                                                   ToolTip="{Binding FiveHourResetValueText}">
-                                                                            <Run Text="重置 " />
-                                                                            <Run Text="{Binding FiveHourResetValueText, Mode=OneWay}" />
-                                                                        </TextBlock>
+                                                                                   ToolTip="{Binding PrimaryMetricDetailText}"
+                                                                                   Text="{Binding PrimaryMetricDetailText}" />
                                                                     </Grid>
                                                                 </Border>
 
@@ -623,7 +685,7 @@
                                                                                        VerticalAlignment="Center"
                                                                                        Foreground="{StaticResource TextSecondaryBrush}"
                                                                                        FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                                       Text="每周" />
+                                                                                       Text="{Binding SecondaryMetricLabel}" />
                                                                         </StackPanel>
                                                                         <TextBlock Grid.Row="1"
                                                                                    Margin="0,4,0,0"
@@ -635,16 +697,25 @@
                                                                                      Margin="0,7,0,0"
                                                                                      Foreground="#D4D5D8"
                                                                                      Maximum="100"
-                                                                                     Value="{Binding WeeklyRemainingValue, Mode=OneWay}" />
+                                                                                     Value="{Binding WeeklyRemainingValue, Mode=OneWay}">
+                                                                            <ProgressBar.Style>
+                                                                                <Style TargetType="ProgressBar">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsDeepSeek}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </ProgressBar.Style>
+                                                                        </ProgressBar>
                                                                         <TextBlock Grid.Row="3"
                                                                                    Margin="0,7,0,0"
                                                                                    Foreground="{StaticResource TextMutedBrush}"
                                                                                    FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9,10.5'}"
                                                                                    TextTrimming="CharacterEllipsis"
-                                                                                   ToolTip="{Binding WeeklyResetValueText}">
-                                                                            <Run Text="重置 " />
-                                                                            <Run Text="{Binding WeeklyResetValueText, Mode=OneWay}" />
-                                                                        </TextBlock>
+                                                                                   ToolTip="{Binding SecondaryMetricDetailText}"
+                                                                                   Text="{Binding SecondaryMetricDetailText}" />
                                                                     </Grid>
                                                                 </Border>
                                                             </Grid>
@@ -665,7 +736,7 @@
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{StaticResource TextMutedBrush}"
                                                                            FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
-                                                                           Text="数据更新" />
+                                                                           Text="{Binding UpdatedLabel}" />
                                                                 <TextBlock Grid.Column="2"
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{StaticResource TextMutedBrush}"
@@ -681,7 +752,7 @@
 
                                                         <UniformGrid Grid.Row="11"
                                                                      Margin="-6,5,-6,-2"
-                                                                     Columns="4">
+                                                                     Rows="1">
                                                             <Grid>
                                                                 <Button Command="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                         CommandParameter="{Binding}"
@@ -713,6 +784,7 @@
                                                                                                         Kind="SwapHorizontal" />
                                                                         </Border>
                                                                         <TextBlock VerticalAlignment="Center"
+                                                                                   Style="{StaticResource ProviderActionLabelStyle}"
                                                                                    Text="切换" />
                                                                     </StackPanel>
                                                                 </Button>
@@ -745,6 +817,7 @@
                                                                                                         Kind="Check" />
                                                                         </Border>
                                                                         <TextBlock VerticalAlignment="Center"
+                                                                                   Style="{StaticResource ProviderActionLabelStyle}"
                                                                                    Text="当前" />
                                                                     </StackPanel>
                                                                 </Button>
@@ -753,7 +826,7 @@
                                                             <Button Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                     CommandParameter="{Binding}"
                                                                     Style="{StaticResource ResponsiveCardActionButtonStyle}"
-                                                                    ToolTip="刷新额度与会员信息">
+                                                                    ToolTip="{Binding RefreshToolTip}">
                                                                 <StackPanel Orientation="Horizontal">
                                                                     <Border Width="28"
                                                                             Height="28"
@@ -772,6 +845,11 @@
                                                                                 <Setter Property="Text"
                                                                                         Value="刷新" />
                                                                                 <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsDeepSeek}"
+                                                                                                 Value="True">
+                                                                                        <Setter Property="Visibility"
+                                                                                                Value="Collapsed" />
+                                                                                    </DataTrigger>
                                                                                     <DataTrigger Binding="{Binding IsRefreshing}"
                                                                                                  Value="True">
                                                                                         <Setter Property="Text"
@@ -784,10 +862,39 @@
                                                                 </StackPanel>
                                                             </Button>
 
+                                                            <Button Command="{Binding DataContext.TestDeepSeekCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    ToolTip="发送最小 Responses API 测试请求">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button"
+                                                                           BasedOn="{StaticResource ResponsiveCardActionButtonStyle}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsDeepSeek}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Border Width="28" Height="28" Margin="0,0,6,0"
+                                                                            Background="#273E3A" CornerRadius="14">
+                                                                        <iconPacks:PackIconMaterial Width="16" Height="16"
+                                                                                                    HorizontalAlignment="Center"
+                                                                                                    VerticalAlignment="Center"
+                                                                                                    Foreground="#61D9C3"
+                                                                                                    Kind="PlayOutline" />
+                                                                    </Border>
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               Style="{StaticResource ProviderActionLabelStyle}"
+                                                                               Text="测试" />
+                                                                </StackPanel>
+                                                            </Button>
+
                                                             <Button Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                     CommandParameter="{Binding}"
                                                                     Style="{StaticResource ResponsiveCardActionButtonStyle}"
-                                                                    ToolTip="编辑昵称">
+                                                                    ToolTip="{Binding EditToolTip}">
                                                                 <StackPanel Orientation="Horizontal">
                                                                     <Border Width="28"
                                                                             Height="28"
@@ -801,6 +908,7 @@
                                                                                                     Kind="PencilOutline" />
                                                                     </Border>
                                                                     <TextBlock VerticalAlignment="Center"
+                                                                               Style="{StaticResource ProviderActionLabelStyle}"
                                                                                Text="编辑" />
                                                                 </StackPanel>
                                                             </Button>
@@ -825,6 +933,7 @@
                                                                     </Border>
                                                                     <TextBlock VerticalAlignment="Center"
                                                                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                               Style="{StaticResource ProviderActionLabelStyle}"
                                                                                Text="删除" />
                                                                 </StackPanel>
                                                             </Button>
@@ -872,19 +981,27 @@
                                                         HorizontalAlignment="Center"
                                                         FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='19,22'}"
                                                         FontWeight="SemiBold"
-                                                        Text="还没有账号" />
+                                                        Text="还没有连接" />
                                             <TextBlock Margin="0,9,0,24"
                                                        HorizontalAlignment="Center"
                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="通过官方 OAuth 添加账号，或前往设置导入当前登录账号。" />
-                                             <Button Command="{Binding AddAccountCommand}"
+                                                       Text="添加 ChatGPT OAuth 账号，或配置 DeepSeek Responses API。" />
+                                             <Button Click="AddConnection_Click"
                                                      Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                                <Button.ContextMenu>
+                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                                        <MenuItem Header="添加 ChatGPT OAuth" Command="{Binding AddAccountCommand}" />
+                                                        <MenuItem Header="导入当前 ChatGPT" Command="{Binding ImportCurrentCommand}" />
+                                                        <Separator />
+                                                        <MenuItem Header="{Binding DeepSeekMenuLabel}" Command="{Binding ConfigureDeepSeekCommand}" />
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
                                                 <StackPanel Orientation="Horizontal">
                                                     <iconPacks:PackIconMaterial Width="20"
                                                                                 Height="20"
                                                                                 Margin="0,0,8,0"
                                                                                 Kind="Plus" />
-                                                    <TextBlock Text="添加第一个账号" />
+                                                    <TextBlock Text="添加第一个连接" />
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
@@ -1046,50 +1163,11 @@
                                         </Border>
                                     </Grid>
 
-                                    <Grid Margin="0,16,0,0">
-                                        <Border Background="{StaticResource SurfaceBrush}"
-                                                CornerRadius="20"
-                                                Effect="{StaticResource CardShadow}"
-                                                IsHitTestVisible="False" />
-                                        <Border Padding="26"
-                                                Background="{StaticResource SurfaceBrush}"
-                                                BorderBrush="{StaticResource BorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="20">
-                                            <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel>
-                                                <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='15,17'}"
-                                                           FontWeight="SemiBold"
-                                                           Text="导入当前账号" />
-                                                <TextBlock Margin="0,6,0,0"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                                           Text="将 ChatGPT 当前登录态安全保存为加密账号档案" />
-                                            </StackPanel>
-                                            <Button Grid.Column="1"
-                                                    Margin="24,0,0,0"
-                                                    Command="{Binding ImportCurrentCommand}">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <iconPacks:PackIconMaterial Width="20"
-                                                                                Height="20"
-                                                                                Margin="0,0,8,0"
-                                                                                Kind="AccountArrowDownOutline" />
-                                                    <TextBlock Text="导入当前账号" />
-                                                </StackPanel>
-                                            </Button>
-                                            </Grid>
-                                        </Border>
-                                    </Grid>
-
                                     <Grid Margin="2,22,2,30">
                                         <TextBlock VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}">
-                                            <Run Text="GPT Account Manager v" /><Run Text="{Binding ApplicationVersion}" /><Run Text=" · 本地优先 · 无遥测" />
+                                            <Run Text="GPT Account Manager v" /><Run Text="{Binding ApplicationVersion, Mode=OneWay}" /><Run Text=" · 本地优先 · 无遥测" />
                                         </TextBlock>
                                         <Button HorizontalAlignment="Right"
                                                 Command="{Binding SaveSettingsCommand}"

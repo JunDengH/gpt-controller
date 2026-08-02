@@ -7,9 +7,17 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Added a single DeepSeek V4 Flash connection using the official Responses API.
+- Added a DPAPI-protected API-key store and command-backed Codex credential helper.
+- Added balance refresh, explicit low-cost Responses testing, and transactional provider switching.
+
 ### Changed
 
 - Centralized application versioning and standardized the tag-based release process.
+- Reworked the main page into unified ChatGPT OAuth and DeepSeek connection management.
+- Require Codex 0.146.0 or newer before enabling the DeepSeek provider.
 
 ## [1.1.5] - 2026-07-30
 

@@ -13,15 +13,18 @@ public sealed class TrayIconService : IDisposable
     private readonly Icon _applicationIcon;
     private readonly Action _showWindow;
     private readonly Action _exit;
+    private readonly Action<AccountCardViewModel> _switchConnection;
     private ContextMenuStrip? _contextMenu;
     private bool _disposed;
 
     public TrayIconService(
         Action showWindow,
-        Action exit)
+        Action exit,
+        Action<AccountCardViewModel> switchConnection)
     {
         _showWindow = showWindow;
         _exit = exit;
+        _switchConnection = switchConnection;
         _applicationIcon = LoadApplicationIcon();
         _notifyIcon = new NotifyIcon
         {
@@ -53,7 +56,23 @@ public sealed class TrayIconService : IDisposable
 
         var activeAccount = accounts.FirstOrDefault(account => account.IsActive);
         menu.Items.Add(CreateAccountItem(activeAccount));
+        if (accounts.Count > 0)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+            foreach (var account in accounts
+                         .OrderByDescending(item => item.IsActive)
+                         .ThenBy(item => item.Provider)
+                         .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase))
+            {
+                var item = CreateActionItem(
+                    $"{(account.IsActive ? "✓ " : string.Empty)}{account.ProviderDisplayName} · {account.Nickname}");
+                item.Enabled = !account.IsActive;
+                item.Click += (_, _) => SwitchConnection(account);
+                menu.Items.Add(item);
+            }
+        }
 
+        menu.Items.Add(new ToolStripSeparator());
         var open = CreateActionItem("打开应用");
         open.Click += (_, _) => ShowWindow();
         menu.Items.Add(open);
@@ -134,17 +153,40 @@ public sealed class TrayIconService : IDisposable
         Application.Current.Dispatcher.BeginInvoke(_exit);
     }
 
+    private void SwitchConnection(AccountCardViewModel account)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        void Execute()
+        {
+            _showWindow();
+            _switchConnection(account);
+        }
+
+        if (Application.Current.Dispatcher.CheckAccess())
+        {
+            Execute();
+        }
+        else
+        {
+            Application.Current.Dispatcher.BeginInvoke(Execute);
+        }
+    }
+
     private static ToolStripLabel CreateAccountItem(
         AccountCardViewModel? account)
     {
         var text = account is null
-            ? "当前账号 · 尚未登录"
-            : $"{account.Nickname}  ·  {account.Email}";
+            ? "当前连接 · 尚未选择"
+            : $"当前连接 · {account.ProviderDisplayName} · {account.Nickname}";
 
         return new ToolStripLabel(text)
         {
-            AccessibleDescription = "当前登录账号的名称和邮箱",
-            AccessibleName = "当前登录账号",
+            AccessibleDescription = "当前活动连接的提供商和名称",
+            AccessibleName = "当前连接",
             AutoSize = false,
             Font = new Font(
                 SystemFonts.MessageBoxFont?.FontFamily ??

@@ -176,6 +176,40 @@ public sealed class ProfileVault
         }
     }
 
+    public async Task ClearActiveProfileAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var changed = false;
+            var profiles = (await LoadProfilesCoreAsync(cancellationToken))
+                .Select(profile =>
+                {
+                    if (!profile.IsActive)
+                    {
+                        return profile;
+                    }
+
+                    changed = true;
+                    return profile with
+                    {
+                        IsActive = false,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    };
+                })
+                .ToList();
+            if (changed)
+            {
+                await SaveProfilesCoreAsync(profiles, cancellationToken);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<byte[]> ReadCredentialAsync(
         Guid profileId,
         CancellationToken cancellationToken = default)

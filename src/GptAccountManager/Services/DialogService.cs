@@ -50,4 +50,18 @@ public sealed class DialogService
             ? dialog.Value
             : null;
     }
+
+    public DeepSeekConnectionInput? PromptDeepSeekConnection(
+        string nickname,
+        bool hasExistingKey)
+    {
+        var dialog = new DeepSeekConnectionDialog(nickname, hasExistingKey)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+
+        return dialog.ShowDialog() == true
+            ? dialog.Value
+            : null;
+    }
 }

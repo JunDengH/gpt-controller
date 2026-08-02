@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
+using GptAccountManager.Credentials;
 using GptAccountManager.Infrastructure;
 using GptAccountManager.Models;
 using GptAccountManager.Mvvm;
@@ -18,6 +19,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly SwitchCoordinator _switchCoordinator;
     private readonly IChatGptProcessController _processController;
     private readonly DialogService _dialogs;
+    private readonly DeepSeekConnectionStore _deepSeekStore;
+    private readonly DeepSeekCredentialStore _deepSeekCredentialStore;
+    private readonly IDeepSeekApiClient _deepSeekApiClient;
+    private readonly CodexVersionService _codexVersionService;
+    private readonly ConnectionSwitchCoordinator _connectionSwitchCoordinator;
+    private readonly string _credentialHelperPath;
     private readonly bool _isUiPreview;
     private readonly DispatcherTimer _quotaTimer = new();
     private readonly CancellationTokenSource _lifetimeCts = new();
@@ -43,6 +50,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         SwitchCoordinator switchCoordinator,
         IChatGptProcessController processController,
         DialogService dialogs,
+        DeepSeekConnectionStore deepSeekStore,
+        DeepSeekCredentialStore deepSeekCredentialStore,
+        IDeepSeekApiClient deepSeekApiClient,
+        CodexVersionService codexVersionService,
+        ConnectionSwitchCoordinator connectionSwitchCoordinator,
+        string credentialHelperPath,
         bool isUiPreview = false)
     {
         _vault = vault;
@@ -54,32 +67,56 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _switchCoordinator = switchCoordinator;
         _processController = processController;
         _dialogs = dialogs;
+        _deepSeekStore = deepSeekStore;
+        _deepSeekCredentialStore = deepSeekCredentialStore;
+        _deepSeekApiClient = deepSeekApiClient;
+        _codexVersionService = codexVersionService;
+        _connectionSwitchCoordinator = connectionSwitchCoordinator;
+        _credentialHelperPath = credentialHelperPath;
         _isUiPreview = isUiPreview;
 
-        AddAccountCommand = new AsyncRelayCommand(AddAccountAsync, () => !IsBusy);
-        ImportCurrentCommand = new AsyncRelayCommand(ImportCurrentAsync, () => !IsBusy);
+        AddAccountCommand = new AsyncRelayCommand(
+            AddAccountAsync,
+            () => !IsBusy && !HasPendingAccountRecovery);
+        ImportCurrentCommand = new AsyncRelayCommand(
+            ImportCurrentAsync,
+            () => !IsBusy && !HasPendingAccountRecovery);
+        ConfigureDeepSeekCommand = new AsyncRelayCommand(
+            ConfigureDeepSeekAsync,
+            () => !IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery);
         RefreshAllCommand = new AsyncRelayCommand(
             RefreshAllAsync,
-            () => !IsBusy && !HasActiveRefresh);
+            () => !IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => !IsBusy);
         ShowAccountsCommand = new RelayCommand(ShowAccountsPage);
         ShowSettingsCommand = new RelayCommand(ShowSettingsPage);
         SwitchAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             SwitchAccountAsync,
-            account => !IsBusy && !account.IsActive);
+            account => !IsBusy && !HasPendingAccountRecovery && !account.IsActive);
         RefreshAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             RefreshAccountAsync,
-            account => !IsBusy && !HasActiveRefresh && !account.IsRefreshing);
+            account =>
+                !IsBusy &&
+                !HasActiveRefresh &&
+                !HasPendingAccountRecovery &&
+                !account.IsRefreshing);
         RenameAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             RenameAccountAsync,
-            _ => !IsBusy);
+            _ => !IsBusy && !HasPendingAccountRecovery);
         DeleteAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             DeleteAccountAsync,
-            account => !IsBusy && account.CanDelete);
+            account => !IsBusy && !HasPendingAccountRecovery && account.CanDelete);
+        TestDeepSeekCommand = new AsyncRelayCommand<AccountCardViewModel>(
+            TestDeepSeekAsync,
+            account =>
+                !IsBusy &&
+                !HasActiveRefresh &&
+                !HasPendingAccountRecovery &&
+                account.IsDeepSeek);
 
         _quotaTimer.Tick += async (_, _) =>
         {
-            if (!IsBusy && !HasActiveRefresh)
+            if (!IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery)
             {
                 await RefreshAllAsync(
                     silent: true,
@@ -92,6 +129,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public AsyncRelayCommand AddAccountCommand { get; }
     public AsyncRelayCommand ImportCurrentCommand { get; }
+    public AsyncRelayCommand ConfigureDeepSeekCommand { get; }
     public AsyncRelayCommand RefreshAllCommand { get; }
     public AsyncRelayCommand SaveSettingsCommand { get; }
     public RelayCommand ShowAccountsCommand { get; }
@@ -100,10 +138,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public AsyncRelayCommand<AccountCardViewModel> RefreshAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> RenameAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> DeleteAccountCommand { get; }
+    public AsyncRelayCommand<AccountCardViewModel> TestDeepSeekCommand { get; }
 
     public event EventHandler? AccountsChanged;
 
     public string ApplicationVersion => ApplicationInfo.Version;
+
+    public string DeepSeekMenuLabel => Accounts.Any(item => item.IsDeepSeek)
+        ? "编辑 DeepSeek API"
+        : "添加 DeepSeek API";
+
+    public string CurrentProviderText => Accounts.FirstOrDefault(item => item.IsActive) switch
+    {
+        { IsDeepSeek: true } => "当前连接 · DeepSeek V4 Flash",
+        { } account => $"当前连接 · ChatGPT · {account.Nickname}",
+        _ => "当前连接 · 尚未选择"
+    };
 
     public bool IsAccountsPage => !_isSettingsPage;
 
@@ -157,6 +207,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private bool HasActiveRefresh => !_refreshTask.IsCompleted;
 
+    private bool HasPendingAccountRecovery =>
+        _switchCoordinator.HasPendingTransaction;
+
     public string StatusMessage
     {
         get => _statusMessage;
@@ -185,13 +238,25 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             StatusMessage = "正在检查恢复状态…";
             var recovered = await _switchCoordinator.RecoverPendingTransactionAsync(
                 _lifetimeCts.Token);
+            if (HasPendingAccountRecovery)
+            {
+                await ReloadAccountsAsync(_lifetimeCts.Token);
+                StatusMessage = "账号恢复未完成，请关闭 ChatGPT 后重启本应用";
+                _dialogs.Error(
+                    "账号恢复未完成",
+                    "为了保护现有登录状态，连接操作已暂时锁定。请完全关闭 ChatGPT，然后重新启动本应用以重试恢复。");
+                return;
+            }
+
+            recovered |= await _connectionSwitchCoordinator.RecoverProviderStateAsync(
+                _lifetimeCts.Token);
             if (recovered)
             {
                 StatusMessage = "已恢复上次未完成的账号切换";
             }
 
             await ReloadAccountsAsync(_lifetimeCts.Token);
-            if (Accounts.Count == 0 &&
+            if (Accounts.All(item => item.IsDeepSeek) &&
                 _importService.HasLiveAccount &&
                 _dialogs.Ask(
                     "导入当前账号",
@@ -219,7 +284,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
-            if (!_disposed)
+            if (!_disposed && !HasPendingAccountRecovery)
             {
                 _quotaTimer.Start();
             }
@@ -260,6 +325,101 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             StatusMessage = "添加账号失败";
             _dialogs.Error("添加账号失败", exception.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task ConfigureDeepSeekAsync()
+    {
+        var existingCard = Accounts.FirstOrDefault(item => item.IsDeepSeek);
+        var input = _dialogs.PromptDeepSeekConnection(
+            existingCard?.Nickname ?? "DeepSeek V4",
+            existingCard is not null);
+        if (input is null)
+        {
+            return;
+        }
+
+        if (_isUiPreview)
+        {
+            var preview = CreatePreviewDeepSeek() with { Nickname = input.Nickname };
+            if (existingCard is null)
+            {
+                Accounts.Insert(0, new AccountCardViewModel(preview));
+            }
+            else
+            {
+                existingCard.UpdateDeepSeek(preview);
+            }
+
+            NotifyConnectionsChanged();
+            StatusMessage = "预览：DeepSeek 连接已更新";
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            if (!File.Exists(_credentialHelperPath))
+            {
+                throw new FileNotFoundException(
+                    "DeepSeek 凭据助手缺失，请使用完整的 1.2.0 应用包。",
+                    _credentialHelperPath);
+            }
+
+            StatusMessage = "正在检查 Codex 版本…";
+            var version = await _codexVersionService.CheckAsync(_lifetimeCts.Token);
+            if (!version.IsSupported)
+            {
+                var installed = version.InstalledVersion?.ToString() ?? version.DisplayText;
+                throw new InvalidOperationException(
+                    $"DeepSeek 连接要求 Codex {version.MinimumVersion} 或更高版本，当前为 {installed}。");
+            }
+
+            var apiKey = input.ApiKey ??
+                await _deepSeekCredentialStore.ReadAsync(_lifetimeCts.Token);
+            StatusMessage = "正在验证 DeepSeek API Key 与余额…";
+            var balance = await _deepSeekApiClient.GetBalanceAsync(
+                apiKey,
+                _lifetimeCts.Token);
+            var now = DateTimeOffset.UtcNow;
+            var connection = (existingCard?.DeepSeekProfile ?? new DeepSeekConnection()) with
+            {
+                Nickname = input.Nickname,
+                LastValidatedAt = now,
+                IsAvailable = balance.IsAvailable,
+                Status = balance.IsAvailable
+                    ? DeepSeekConnectionStatus.Available
+                    : DeepSeekConnectionStatus.Unavailable,
+                ErrorCode = null,
+                Balance = balance,
+                CnyBalance = ReadBalance(balance, "CNY"),
+                UsdBalance = ReadBalance(balance, "USD")
+            };
+            await _deepSeekStore.SaveAsync(
+                connection,
+                input.ApiKey,
+                _lifetimeCts.Token);
+            await ReloadAccountsAsync(_lifetimeCts.Token);
+            StatusMessage = "DeepSeek API 连接已验证并安全保存";
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels configuration.
+        }
+        catch (DeepSeekApiException exception)
+        {
+            StatusMessage = "DeepSeek API 验证失败";
+            _dialogs.Error("DeepSeek 连接", exception.Message);
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = "DeepSeek 连接保存失败";
+            _dialogs.Error("DeepSeek 连接", RedactingLogger.Redact(exception.Message));
         }
         finally
         {
@@ -350,6 +510,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         if (reason == QuotaRefreshReason.Automatic &&
+                            !account.IsDeepSeek &&
                             QuotaRefreshPolicy.ShouldSkipAutomatic(
                                 account.Profile.Quota))
                         {
@@ -431,12 +592,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 StatusMessage = $"正在刷新 {account.Nickname}…";
             }
 
-            var updated = await _quotaService.RefreshAsync(
-                account.Id,
-                reason,
-                cancellationToken);
-            account.UpdateProfile(updated);
-            AccountsChanged?.Invoke(this, EventArgs.Empty);
+            if (account.IsDeepSeek)
+            {
+                await RefreshDeepSeekCoreAsync(account, cancellationToken);
+            }
+            else
+            {
+                var updated = await _quotaService.RefreshAsync(
+                    account.Id,
+                    reason,
+                    cancellationToken);
+                account.UpdateProfile(updated);
+            }
+            NotifyConnectionsChanged();
             if (updateGlobalStatus)
             {
                 StatusMessage = $"{account.Nickname} 已更新";
@@ -446,6 +614,49 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             account.IsRefreshing = false;
             NotifyCommands();
+        }
+    }
+
+    private async Task RefreshDeepSeekCoreAsync(
+        AccountCardViewModel account,
+        CancellationToken cancellationToken)
+    {
+        var current = account.DeepSeekProfile
+            ?? throw new InvalidOperationException("DeepSeek 连接不存在。");
+        try
+        {
+            var apiKey = await _deepSeekCredentialStore.ReadAsync(cancellationToken);
+            var balance = await _deepSeekApiClient.GetBalanceAsync(apiKey, cancellationToken);
+            var updated = current with
+            {
+                LastValidatedAt = DateTimeOffset.UtcNow,
+                IsAvailable = balance.IsAvailable,
+                Status = balance.IsAvailable
+                    ? DeepSeekConnectionStatus.Available
+                    : DeepSeekConnectionStatus.Unavailable,
+                ErrorCode = null,
+                Balance = balance,
+                CnyBalance = ReadBalance(balance, "CNY"),
+                UsdBalance = ReadBalance(balance, "USD")
+            };
+            updated = await _deepSeekStore.SaveAsync(
+                updated,
+                cancellationToken: cancellationToken);
+            account.UpdateDeepSeek(updated);
+        }
+        catch (DeepSeekApiException exception)
+        {
+            var failed = current with
+            {
+                Status = MapConnectionStatus(exception.ErrorKind),
+                ErrorCode = exception.ErrorKind.ToString(),
+                IsAvailable = false
+            };
+            failed = await _deepSeekStore.SaveAsync(
+                failed,
+                cancellationToken: cancellationToken);
+            account.UpdateDeepSeek(failed);
+            throw;
         }
     }
 
@@ -459,30 +670,37 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (_isUiPreview)
         {
-            var profiles = Accounts
-                .Select(item => item.Profile with { IsActive = item.Id == account.Id })
+            var cards = Accounts.Select(item => item.IsDeepSeek
+                    ? new AccountCardViewModel(item.DeepSeekProfile! with
+                    {
+                        IsActive = item.Id == account.Id
+                    })
+                    : new AccountCardViewModel(item.Profile with
+                    {
+                        IsActive = item.Id == account.Id
+                    }))
                 .OrderByDescending(item => item.IsActive)
                 .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
             Accounts.Clear();
-            foreach (var profile in profiles)
+            foreach (var card in cards)
             {
-                Accounts.Add(new AccountCardViewModel(profile));
+                Accounts.Add(card);
             }
 
-            OnPropertyChanged(nameof(Accounts));
-            AccountsChanged?.Invoke(this, EventArgs.Empty);
+            NotifyConnectionsChanged();
             StatusMessage = $"预览：已切换到 {account.Nickname}";
             return;
         }
 
         if (_processController.IsChatGptRunning() &&
             !_dialogs.Confirm(
-                "切换账号并重启 ChatGPT",
+                "切换连接并重启 ChatGPT",
                 $"切换到“{account.Nickname}”需要关闭并重启 ChatGPT。\n\n" +
-                "正在运行的任务可能会被中断。默认操作是取消；确认继续吗？"))
+                "正在运行的任务可能会被中断。不同认证组的历史记录只会暂时隐藏，不会被删除。\n\n" +
+                "默认操作是取消；确认继续吗？"))
         {
-            StatusMessage = "已取消账号切换";
+            StatusMessage = "已取消连接切换";
             return;
         }
 
@@ -491,17 +709,52 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await CancelAndDrainRefreshesAsync();
+            if (account.IsDeepSeek)
+            {
+                StatusMessage = "正在检查 Codex 版本…";
+                var version = await _codexVersionService.CheckAsync(
+                    _lifetimeCts.Token);
+                if (!version.IsSupported)
+                {
+                    var installed = version.InstalledVersion?.ToString() ??
+                        version.DisplayText;
+                    StatusMessage = "Codex 版本不支持 DeepSeek";
+                    _dialogs.Error(
+                        "无法启用 DeepSeek",
+                        $"DeepSeek 连接要求 Codex {version.MinimumVersion} 或更高版本，当前为 {installed}。");
+                    return;
+                }
+            }
+
             var progress = new ImmediateProgress<SwitchStage>(stage =>
                 StatusMessage = DescribeSwitchStage(stage, account.Nickname));
-            var result = await _switchCoordinator.SwitchAsync(
-                account.Id,
-                progress,
-                _lifetimeCts.Token);
+            var result = account.IsDeepSeek
+                ? await _connectionSwitchCoordinator.SwitchToDeepSeekAsync(
+                    progress,
+                    _lifetimeCts.Token)
+                : await _connectionSwitchCoordinator.SwitchToChatGptAsync(
+                    account.Id,
+                    forceConfigRestore: false,
+                    progress,
+                    _lifetimeCts.Token);
+            if (result.Status == SwitchStatus.ConfigurationConflict &&
+                !account.IsDeepSeek &&
+                _dialogs.Confirm(
+                    "Codex 配置冲突",
+                    result.Message +
+                    "\n\n按备份恢复只会覆盖 DeepSeek 接管的字段；新增的 MCP、项目信任和其他 Provider 会保留。确认继续吗？"))
+            {
+                result = await _connectionSwitchCoordinator.SwitchToChatGptAsync(
+                    account.Id,
+                    forceConfigRestore: true,
+                    progress,
+                    _lifetimeCts.Token);
+            }
             await ReloadAccountsAsync(_lifetimeCts.Token);
             StatusMessage = result.Message;
             if (!result.IsSuccess)
             {
-                _dialogs.Error("账号切换", result.Message);
+                _dialogs.Error("连接切换", result.Message);
             }
             else
             {
@@ -514,15 +767,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = "账号切换失败";
-            _dialogs.Error("账号切换失败", exception.Message);
+            StatusMessage = "连接切换失败";
+            _dialogs.Error("连接切换失败", RedactingLogger.Redact(exception.Message));
         }
         finally
         {
             IsBusy = false;
         }
 
-        if (refreshAfterSwitch && !_disposed)
+        if (refreshAfterSwitch && !_disposed && !account.IsDeepSeek)
         {
             StartPostSwitchRefresh(account.Id);
         }
@@ -530,6 +783,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RenameAccountAsync(AccountCardViewModel account)
     {
+        if (account.IsDeepSeek)
+        {
+            await ConfigureDeepSeekAsync();
+            return;
+        }
+
         if (_isUiPreview)
         {
             StatusMessage = "界面预览模式不会修改账号昵称";
@@ -564,6 +823,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             // Application shutdown cancels mutation without showing an error.
         }
+        catch (Exception exception)
+        {
+            StatusMessage = "昵称更新失败";
+            _dialogs.Error(
+                "编辑昵称失败",
+                RedactingLogger.Redact(exception.Message));
+        }
         finally
         {
             IsBusy = false;
@@ -585,8 +851,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         if (!_dialogs.Confirm(
-                "删除账号",
-                $"确定删除“{account.Nickname}”吗？\n\n只会删除本软件保存的加密档案，不会退出或注销 OpenAI 账号。"))
+                account.IsDeepSeek ? "删除 DeepSeek 连接" : "删除账号",
+                account.IsDeepSeek
+                    ? $"确定删除“{account.Nickname}”吗？\n\n本机 DPAPI 加密的 API Key 与连接元数据会一并删除。"
+                    : $"确定删除“{account.Nickname}”吗？\n\n只会删除本软件保存的加密档案，不会退出或注销 OpenAI 账号。"))
         {
             return;
         }
@@ -595,13 +863,104 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await CancelAndDrainRefreshesAsync();
-            await _vault.DeleteProfileAsync(account.Id, _lifetimeCts.Token);
+            if (account.IsDeepSeek)
+            {
+                await _deepSeekStore.DeleteAsync(_lifetimeCts.Token);
+            }
+            else
+            {
+                await _vault.DeleteProfileAsync(account.Id, _lifetimeCts.Token);
+            }
             await ReloadAccountsAsync(_lifetimeCts.Token);
-            StatusMessage = "账号档案已删除";
+            StatusMessage = account.IsDeepSeek ? "DeepSeek 连接已删除" : "账号档案已删除";
         }
         catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
         {
             // Application shutdown cancels mutation without showing an error.
+        }
+        catch (Exception exception)
+        {
+            if (account.IsDeepSeek)
+            {
+                try
+                {
+                    await ReloadAccountsAsync(CancellationToken.None);
+                }
+                catch
+                {
+                    // Keep the original deletion error. A later reload or restart
+                    // will reconcile any partially deleted connection metadata.
+                }
+            }
+
+            StatusMessage = account.IsDeepSeek
+                ? "DeepSeek 连接删除失败"
+                : "账号删除失败";
+            _dialogs.Error(
+                "删除失败",
+                RedactingLogger.Redact(exception.Message));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task TestDeepSeekAsync(AccountCardViewModel account)
+    {
+        if (!account.IsDeepSeek)
+        {
+            return;
+        }
+
+        if (_isUiPreview)
+        {
+            StatusMessage = "预览：DeepSeek Responses 测试成功";
+            return;
+        }
+
+        if (!_dialogs.Confirm(
+                "测试 DeepSeek Responses",
+                "将发送一个要求仅回复 OK 的最小 Responses API 请求，会产生少量 Token 费用。确认继续吗？"))
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            StatusMessage = "正在测试 DeepSeek Responses API…";
+            var apiKey = await _deepSeekCredentialStore.ReadAsync(_lifetimeCts.Token);
+            var result = await _deepSeekApiClient.TestResponseAsync(
+                apiKey,
+                _lifetimeCts.Token);
+            var profile = account.DeepSeekProfile! with
+            {
+                LastValidatedAt = DateTimeOffset.UtcNow,
+                IsAvailable = true,
+                Status = DeepSeekConnectionStatus.Available,
+                ErrorCode = null
+            };
+            profile = await _deepSeekStore.SaveAsync(
+                profile,
+                cancellationToken: _lifetimeCts.Token);
+            account.UpdateDeepSeek(profile);
+            NotifyConnectionsChanged();
+            StatusMessage = "DeepSeek Responses API 测试成功";
+            _dialogs.Info(
+                "Responses 测试成功",
+                $"模型返回：{result.OutputText.Trim()}\n响应 ID：{result.ResponseId}\nToken：{result.TotalTokens?.ToString() ?? "未返回"}");
+        }
+        catch (DeepSeekApiException exception)
+        {
+            StatusMessage = "DeepSeek Responses API 测试失败";
+            _dialogs.Error("Responses 测试失败", exception.Message);
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = "DeepSeek Responses API 测试失败";
+            _dialogs.Error("Responses 测试失败", RedactingLogger.Redact(exception.Message));
         }
         finally
         {
@@ -748,13 +1107,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         };
 
         Accounts.Clear();
+        Accounts.Add(new AccountCardViewModel(CreatePreviewDeepSeek()));
         foreach (var profile in profiles)
         {
             Accounts.Add(new AccountCardViewModel(profile));
         }
 
-        OnPropertyChanged(nameof(Accounts));
-        AccountsChanged?.Invoke(this, EventArgs.Empty);
+        NotifyConnectionsChanged();
     }
 
     private static QuotaSnapshot CreatePreviewQuota(
@@ -778,12 +1137,49 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             Status = status
         };
 
+    private static decimal? ReadBalance(
+        DeepSeekBalanceSnapshot balance,
+        string currency) =>
+        balance.Balances.FirstOrDefault(item => string.Equals(
+            item.Currency,
+            currency,
+            StringComparison.OrdinalIgnoreCase))?.TotalBalance;
+
+    private static DeepSeekConnectionStatus MapConnectionStatus(
+        DeepSeekApiErrorKind kind) => kind switch
+        {
+            DeepSeekApiErrorKind.AuthenticationRequired =>
+                DeepSeekConnectionStatus.AuthenticationRequired,
+            DeepSeekApiErrorKind.PaymentRequired =>
+                DeepSeekConnectionStatus.PaymentRequired,
+            DeepSeekApiErrorKind.RateLimited =>
+                DeepSeekConnectionStatus.RateLimited,
+            DeepSeekApiErrorKind.Timeout or DeepSeekApiErrorKind.Network =>
+                DeepSeekConnectionStatus.Stale,
+            _ => DeepSeekConnectionStatus.Unavailable
+        };
+
     private async Task ReloadAccountsAsync(
         CancellationToken cancellationToken)
     {
         var profiles = await _vault.LoadProfilesAsync(cancellationToken);
+        var deepSeek = await _deepSeekStore.GetAsync(cancellationToken);
         var existing = Accounts.ToDictionary(account => account.Id);
         Accounts.Clear();
+        if (deepSeek is not null)
+        {
+            if (existing.TryGetValue(AccountCardViewModel.DeepSeekCardId, out var deepSeekCard) &&
+                deepSeekCard.IsDeepSeek)
+            {
+                deepSeekCard.UpdateDeepSeek(deepSeek);
+                Accounts.Add(deepSeekCard);
+            }
+            else
+            {
+                Accounts.Add(new AccountCardViewModel(deepSeek));
+            }
+        }
+
         foreach (var profile in profiles
                      .OrderByDescending(item => item.IsActive)
                      .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase))
@@ -799,7 +1195,36 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
         }
 
+        var ordered = Accounts
+            .OrderByDescending(item => item.IsActive)
+            .ThenBy(item => item.Provider)
+            .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        Accounts.Clear();
+        foreach (var item in ordered)
+        {
+            Accounts.Add(item);
+        }
+
+        NotifyConnectionsChanged();
+    }
+
+    private static DeepSeekConnection CreatePreviewDeepSeek() => new()
+    {
+        Nickname = "DeepSeek V4",
+        KeyLastFour = "8K2Q",
+        IsAvailable = true,
+        Status = DeepSeekConnectionStatus.Available,
+        CnyBalance = 42.80m,
+        UsdBalance = 6.25m,
+        LastValidatedAt = DateTimeOffset.Now.AddMinutes(-3)
+    };
+
+    private void NotifyConnectionsChanged()
+    {
         OnPropertyChanged(nameof(Accounts));
+        OnPropertyChanged(nameof(DeepSeekMenuLabel));
+        OnPropertyChanged(nameof(CurrentProviderText));
         AccountsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -932,6 +1357,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SwitchStage.ValidatingCredential => $"正在验证 {nickname} 的登录状态…",
             SwitchStage.StoppingChatGpt => "正在关闭 ChatGPT…",
             SwitchStage.CheckingBlockers => "正在检查共享认证进程…",
+            SwitchStage.ConfiguringProvider => "正在安全更新 Codex Responses 配置…",
             SwitchStage.WritingCredential => "正在安全写入账号认证…",
             SwitchStage.LaunchingChatGpt => "正在启动 ChatGPT…",
             SwitchStage.Completed => $"已切换到 {nickname}",
@@ -948,12 +1374,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         AddAccountCommand.NotifyCanExecuteChanged();
         ImportCurrentCommand.NotifyCanExecuteChanged();
+        ConfigureDeepSeekCommand.NotifyCanExecuteChanged();
         RefreshAllCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
         SwitchAccountCommand.NotifyCanExecuteChanged();
         RefreshAccountCommand.NotifyCanExecuteChanged();
         RenameAccountCommand.NotifyCanExecuteChanged();
         DeleteAccountCommand.NotifyCanExecuteChanged();
+        TestDeepSeekCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()

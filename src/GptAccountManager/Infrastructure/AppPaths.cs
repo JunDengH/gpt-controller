@@ -15,6 +15,7 @@ public sealed class AppPaths
         Temp = Path.Combine(Root, "temp");
         Logs = Path.Combine(Root, "logs");
         Runtime = Path.Combine(Root, "runtime");
+        CodexResources = Path.Combine(Root, "codex");
         IndexFile = Path.Combine(Root, "accounts.json");
         SettingsFile = Path.Combine(Root, "settings.json");
         TransactionFile = Path.Combine(Root, "pending-switch.json");
@@ -22,6 +23,8 @@ public sealed class AppPaths
         CodexHome = Path.Combine(profileRoot, ".codex");
         LiveAuthFile = Path.Combine(CodexHome, "auth.json");
         CodexConfigFile = Path.Combine(CodexHome, "config.toml");
+        DeepSeekModelCatalogFile = Path.Combine(CodexResources, "models.json");
+        DeepSeekConfigStateFile = Path.Combine(CodexResources, "config-state.json");
     }
 
     public string Root { get; }
@@ -30,12 +33,15 @@ public sealed class AppPaths
     public string Temp { get; }
     public string Logs { get; }
     public string Runtime { get; }
+    public string CodexResources { get; }
     public string IndexFile { get; }
     public string SettingsFile { get; }
     public string TransactionFile { get; }
     public string CodexHome { get; }
     public string LiveAuthFile { get; }
     public string CodexConfigFile { get; }
+    public string DeepSeekModelCatalogFile { get; }
+    public string DeepSeekConfigStateFile { get; }
 
     public string GetCredentialPath(Guid profileId) =>
         Path.Combine(Profiles, $"{profileId:N}.bin");
@@ -48,5 +54,6 @@ public sealed class AppPaths
         Directory.CreateDirectory(Temp);
         Directory.CreateDirectory(Logs);
         Directory.CreateDirectory(Runtime);
+        Directory.CreateDirectory(CodexResources);
     }
 }

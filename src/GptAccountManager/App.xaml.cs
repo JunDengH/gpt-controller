@@ -1,4 +1,6 @@
+using System.Net.Http;
 using System.Windows;
+using GptAccountManager.Credentials;
 using GptAccountManager.Infrastructure;
 using GptAccountManager.Services;
 using GptAccountManager.ViewModels;
@@ -14,6 +16,7 @@ public partial class App : Application
     private MainWindowViewModel? _viewModel;
     private TrayIconService? _trayIcon;
     private MainWindow? _mainWindow;
+    private HttpClient? _deepSeekHttpClient;
 
     public bool IsExiting { get; private set; }
 
@@ -90,6 +93,34 @@ public partial class App : Application
                 processController,
                 operationGate,
                 logger);
+            var deepSeekCredentialStore = new DeepSeekCredentialStore(paths.Root);
+            var deepSeekStore = new DeepSeekConnectionStore(
+                paths,
+                deepSeekCredentialStore);
+            var credentialHelperPath = Path.Combine(
+                AppContext.BaseDirectory,
+                CredentialHelperLocator.ExecutableName);
+            var deepSeekConfigService = new DeepSeekCodexConfigService(
+                new DeepSeekCodexConfigOptions(
+                    paths.CodexConfigFile,
+                    paths.DeepSeekModelCatalogFile,
+                    paths.DeepSeekConfigStateFile,
+                    credentialHelperPath));
+            _deepSeekHttpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+            var deepSeekApiClient = new DeepSeekApiClient(_deepSeekHttpClient);
+            var codexVersionService = new CodexVersionService(locator);
+            var connectionSwitchCoordinator = new ConnectionSwitchCoordinator(
+                vault,
+                deepSeekStore,
+                deepSeekCredentialStore,
+                deepSeekConfigService,
+                switchCoordinator,
+                processController,
+                operationGate,
+                logger);
             var dialogs = new DialogService();
 
             _viewModel = new MainWindowViewModel(
@@ -102,6 +133,12 @@ public partial class App : Application
                 switchCoordinator,
                 processController,
                 dialogs,
+                deepSeekStore,
+                deepSeekCredentialStore,
+                deepSeekApiClient,
+                codexVersionService,
+                connectionSwitchCoordinator,
+                credentialHelperPath,
                 isUiPreview);
             _mainWindow = new MainWindow(_viewModel);
             if (isCompactUiPreview)
@@ -113,7 +150,8 @@ public partial class App : Application
             MainWindow = _mainWindow;
             _trayIcon = new TrayIconService(
                 ShowMainWindow,
-                ExitApplication);
+                ExitApplication,
+                connection => _viewModel.SwitchAccountCommand.Execute(connection));
             _viewModel.AccountsChanged += (_, _) =>
                 _trayIcon.UpdateAccounts(_viewModel.Accounts.ToList());
 
@@ -186,6 +224,8 @@ public partial class App : Application
         _viewModel?.Dispose();
         _trayIcon?.Dispose();
         _trayIcon = null;
+        _deepSeekHttpClient?.Dispose();
+        _deepSeekHttpClient = null;
         _singleInstance?.Dispose();
         _singleInstance = null;
         base.OnExit(e);

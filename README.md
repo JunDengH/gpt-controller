@@ -1,7 +1,7 @@
 # GPT Account Manager
 
-一个面向 Windows 11 的本地优先 ChatGPT 账号管理器：通过官方 OAuth 添加账号，
-安全切换统一 ChatGPT 客户端的登录态，并显示每个账号的 5 小时与周限额、会员状态和公司归属。
+一个面向 Windows 11 的本地优先 Codex 连接管理器：通过官方 OAuth 管理 ChatGPT
+账号，也可使用 DeepSeek V4 Flash 的 Responses API，并在统一界面安全切换提供商。
 
 > 本项目是非官方开源工具，与 OpenAI 无隶属或背书关系。
 
@@ -15,13 +15,19 @@
 - Team/Business 显示当前组织名称，其他套餐固定显示“个人账号”。
 - 切换前保存最新认证，失败时自动恢复并重启原账号。
 - 主窗口可快速切换和查看额度；系统托盘显示当前账号并提供打开、退出入口。
+- 使用 `deepseek-v4-flash`、官方 `https://api.deepseek.com/` 和 Responses API。
+- 显示 DeepSeek CNY/USD 余额，并提供需要明确确认的最小 Responses 测试。
+- DeepSeek Key 通过 DPAPI 加密保存，Codex 通过无界面凭据助手按需读取，
+  `config.toml`、日志和备份中不写入明文 Key。
 
 ## 系统要求
 
 - Windows 11 x64。
 - 从 Microsoft Store/MSIX 安装的当前 ChatGPT Windows 客户端。
-- ChatGPT managed OAuth 账号；API Key、Bedrock 和外部 Token 模式不在 v1
-  支持范围。
+- ChatGPT managed OAuth 账号，或一个 DeepSeek API Key。
+- DeepSeek 连接要求 Codex CLI 0.146.0 或更高版本。
+- 自定义代理、多 DeepSeek Key、Chat Completions、V4 Pro、图片和文件输入不在
+  1.2.0 支持范围。
 
 ## 安全边界
 
@@ -31,8 +37,9 @@
 %LOCALAPPDATA%\GptAccountManager
 ```
 
-凭据文件使用 DPAPI `CurrentUser` 加密。元数据（昵称、邮箱、套餐、公司名称和额度
-缓存）与凭据分离。官方客户端当前使用的：
+ChatGPT 与 DeepSeek 凭据文件都使用 DPAPI `CurrentUser` 加密。元数据（昵称、邮箱、
+套餐、公司名称、余额和额度缓存）与凭据分离。DeepSeek Key 只由随包发布的凭据助手
+输出给 Codex 自定义 Provider，不会写入 `config.toml`。官方客户端当前使用的：
 
 ```text
 %USERPROFILE%\.codex\auth.json
@@ -57,12 +64,18 @@ WindowsApps 或重新分发该二进制。
 
 ## 使用
 
-1. 启动应用并选择“导入当前账号”，保存 ChatGPT 当前登录状态。
-2. 选择“添加账号”，在官方浏览器页面登录另一个账号。
-3. 在账号卡片查看会员状态、归属、5 小时限额和周限额。
-4. 点击“切换”。如果 ChatGPT 正在运行，确认关闭和重启。
+1. 点击“添加连接”，导入当前 ChatGPT 登录状态或通过 OAuth 添加账号。
+2. 也可选择“添加 DeepSeek API”，输入 Key；保存前会通过余额接口验证。
+3. 在连接卡片查看 ChatGPT 配额或 DeepSeek CNY/USD 余额。
+4. DeepSeek 卡片的“测试”会在确认后发送一个最小 Responses 请求并产生少量费用。
+5. 点击“切换”。如果 ChatGPT 正在运行，确认关闭和重启。
 
-切换会中断正在运行的任务。程序默认取消，只有明确确认后才会关闭客户端。
+切换会中断正在运行的任务。程序默认取消，只有明确确认后才会关闭客户端。不同认证
+组的历史记录可能暂时隐藏，但不会被删除；切回原提供商后会重新显示。
+
+协议与配置依据：[DeepSeek Responses API](https://api-docs.deepseek.com/zh-cn/guides/responses_api/)、
+[DeepSeek 接入 Codex](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/)
+和 [Codex 自定义模型 Provider](https://learn.chatgpt.com/docs/config-file/config-advanced#custom-model-providers)。
 
 ## 从源码构建
 

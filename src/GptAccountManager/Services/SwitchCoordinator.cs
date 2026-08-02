@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using GptAccountManager.Infrastructure;
 using GptAccountManager.Models;
@@ -25,6 +26,8 @@ public sealed class SwitchCoordinator
     private readonly IChatGptProcessController _processController;
     private readonly OperationGate _operationGate;
     private readonly RedactingLogger _logger;
+
+    public bool HasPendingTransaction => File.Exists(_paths.TransactionFile);
 
     public SwitchCoordinator(
         AppPaths paths,
@@ -82,19 +85,30 @@ public sealed class SwitchCoordinator
             var json = await File.ReadAllTextAsync(_paths.TransactionFile, cancellationToken);
             var journal = JsonSerializer.Deserialize<SwitchJournal>(json, JsonOptions)
                 ?? throw new InvalidDataException("Invalid switch journal.");
-            await _processController.StopChatGptAsync(cancellationToken);
+            if (!await _processController.StopChatGptAsync(cancellationToken))
+            {
+                await _logger.WarningAsync(
+                    "switch.recovery",
+                    "ChatGPT could not be stopped; recovery was deferred.");
+                return false;
+            }
+
             await RestorePreviousAuthAsync(journal, cancellationToken);
             if (journal.PreviousProfileId.HasValue)
             {
                 await _vault.SetActiveProfileAsync(journal.PreviousProfileId.Value, cancellationToken);
             }
 
-            AtomicFile.TryDelete(_paths.TransactionFile);
             if (journal.PreviousAuthExisted)
             {
-                await _processController.LaunchChatGptAsync(cancellationToken);
+                if (!await _processController.LaunchChatGptAsync(cancellationToken))
+                {
+                    throw new InvalidOperationException(
+                        "ChatGPT did not restart after switch recovery.");
+                }
             }
 
+            DeleteTransactionFileReliably();
             await _logger.WarningAsync("switch.recovery", "Recovered an incomplete switch transaction.");
             return true;
         }
@@ -109,11 +123,47 @@ public sealed class SwitchCoordinator
         }
     }
 
-    private async Task<SwitchResult> SwitchCoreAsync(
+    internal async Task<string?> CaptureActiveCredentialBackupAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var active = await _vault.GetActiveProfileAsync(cancellationToken);
+        if (active is null || !File.Exists(_paths.LiveAuthFile))
+        {
+            return null;
+        }
+
+        var liveCredential = await File.ReadAllBytesAsync(
+            _paths.LiveAuthFile,
+            cancellationToken);
+        try
+        {
+            await CaptureOutgoingCredentialCoreAsync(
+                active,
+                liveCredential,
+                cancellationToken);
+            return await _vault.CreateBackupAsync(
+                liveCredential,
+                active.Id,
+                cancellationToken);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(liveCredential);
+        }
+    }
+
+    internal async Task<SwitchResult> SwitchCoreAsync(
         Guid targetProfileId,
         IProgress<SwitchStage>? progress,
         CancellationToken cancellationToken)
     {
+        if (HasPendingTransaction)
+        {
+            return SwitchResult.Failure(
+                SwitchStatus.Failed,
+                "检测到尚未完成的账号恢复。请完全关闭 ChatGPT，然后重启本应用完成恢复。");
+        }
+
         progress?.Report(SwitchStage.ValidatingCredential);
         var target = await _vault.GetProfileAsync(targetProfileId, cancellationToken);
         if (target is null)
@@ -223,7 +273,7 @@ public sealed class SwitchCoordinator
             }
 
             await _vault.SetActiveProfileAsync(target.Id, cancellationToken);
-            AtomicFile.TryDelete(_paths.TransactionFile);
+            DeleteTransactionFileReliably();
             await _logger.InfoAsync("switch.complete", $"Activated profile {target.Id:N}.");
             progress?.Report(SwitchStage.Completed);
             return SwitchResult.Success();
@@ -239,19 +289,28 @@ public sealed class SwitchCoordinator
             await _logger.ErrorAsync("switch.failed", exception);
             try
             {
-                await _processController.StopChatGptAsync(cancellationToken);
-                await RestorePreviousAuthAsync(journal, cancellationToken);
+                if (!await _processController.StopChatGptAsync(CancellationToken.None))
+                {
+                    throw new InvalidOperationException(
+                        "ChatGPT could not be stopped for switch rollback.");
+                }
+
+                await RestorePreviousAuthAsync(journal, CancellationToken.None);
                 if (previous is not null)
                 {
-                    await _vault.SetActiveProfileAsync(previous.Id, cancellationToken);
+                    await _vault.SetActiveProfileAsync(previous.Id, CancellationToken.None);
                 }
 
-                AtomicFile.TryDelete(_paths.TransactionFile);
                 if (previousAuthExisted)
                 {
-                    await _processController.LaunchChatGptAsync(cancellationToken);
+                    if (!await _processController.LaunchChatGptAsync(CancellationToken.None))
+                    {
+                        throw new InvalidOperationException(
+                            "ChatGPT did not restart after switch rollback.");
+                    }
                 }
 
+                DeleteTransactionFileReliably();
                 return SwitchResult.Failure(
                     SwitchStatus.RolledBack,
                     "切换失败，已恢复原账号。");
@@ -266,6 +325,15 @@ public sealed class SwitchCoordinator
         }
     }
 
+    private void DeleteTransactionFileReliably()
+    {
+        File.Delete(_paths.TransactionFile);
+        if (File.Exists(_paths.TransactionFile))
+        {
+            throw new IOException("The switch journal could not be deleted.");
+        }
+    }
+
     private async Task CaptureOutgoingCredentialAsync(
         AccountProfile previous,
         byte[] liveCredential,
@@ -273,20 +341,10 @@ public sealed class SwitchCoordinator
     {
         try
         {
-            ValidateCredentialIdentity(liveCredential, previous.AccountId);
-            var stored = await _vault.ReadCredentialAsync(previous.Id, cancellationToken);
-            var storedInfo = AuthDocument.Inspect(stored);
-            var liveInfo = AuthDocument.Inspect(liveCredential);
-
-            if (storedInfo.HasRefreshToken && !liveInfo.HasRefreshToken)
-            {
-                await _logger.WarningAsync(
-                    "switch.capture",
-                    $"Skipped incomplete live credential for profile {previous.Id:N}.");
-                return;
-            }
-
-            await _vault.WriteCredentialAsync(previous.Id, liveCredential, cancellationToken);
+            await CaptureOutgoingCredentialCoreAsync(
+                previous,
+                liveCredential,
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -297,6 +355,38 @@ public sealed class SwitchCoordinator
             await _logger.WarningAsync(
                 "switch.capture",
                 $"Outgoing credential was not captured: {exception.Message}");
+        }
+    }
+
+    private async Task CaptureOutgoingCredentialCoreAsync(
+        AccountProfile previous,
+        byte[] liveCredential,
+        CancellationToken cancellationToken)
+    {
+        ValidateCredentialIdentity(liveCredential, previous.AccountId);
+        var stored = await _vault.ReadCredentialAsync(previous.Id, cancellationToken);
+        try
+        {
+            var storedInfo = AuthDocument.Inspect(stored);
+            var liveInfo = AuthDocument.Inspect(liveCredential);
+
+            if (storedInfo.HasRefreshToken && !liveInfo.HasRefreshToken)
+            {
+                await _logger.WarningAsync(
+                    "switch.capture",
+                    $"Rejected incomplete live credential for profile {previous.Id:N}.");
+                throw new InvalidDataException(
+                    "The live ChatGPT credential is missing its refresh token.");
+            }
+
+            await _vault.WriteCredentialAsync(
+                previous.Id,
+                liveCredential,
+                cancellationToken);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(stored);
         }
     }
 

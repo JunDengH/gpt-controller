@@ -16,10 +16,15 @@
 
   <ItemGroup>
     <PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />
+    <PackageReference Include="Tomlyn" Version="2.10.1" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="GptAccountManager.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GptAccountManager.Credentials\GptAccountManager.Credentials.csproj" />
   </ItemGroup>
 
   <ItemGroup>

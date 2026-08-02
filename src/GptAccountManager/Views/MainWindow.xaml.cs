@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using GptAccountManager.Infrastructure;
 using GptAccountManager.ViewModels;
 using MahApps.Metro.IconPacks;
@@ -81,6 +83,18 @@ public partial class MainWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) =>
         Close();
+
+    private void AddConnection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu } button)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
 
     private void Window_StateChanged(object? sender, EventArgs e)
     {

@@ -5,6 +5,27 @@ namespace GptAccountManager.Tests;
 
 public sealed class AccountCardViewModelTests
 {
+    [Fact]
+    public void DeepSeekCardUsesBalanceAndProviderSpecificLabels()
+    {
+        var card = new AccountCardViewModel(new DeepSeekConnection
+        {
+            Nickname = "DeepSeek V4",
+            KeyLastFour = "1234",
+            IsAvailable = true,
+            Status = DeepSeekConnectionStatus.Available,
+            CnyBalance = 12.5m,
+            UsdBalance = 2m
+        });
+
+        Assert.True(card.IsDeepSeek);
+        Assert.Equal("DeepSeek API", card.ProviderDisplayName);
+        Assert.Equal("API Key •••• 1234", card.Email);
+        Assert.Equal("¥12.50", card.FiveHourRemainingText);
+        Assert.Equal("$2.00", card.WeeklyRemainingText);
+        Assert.Equal("API 可用", card.QuotaStatusText);
+    }
+
     [Theory]
     [InlineData("invalid_auth", "需要重新登录")]
     [InlineData("confirmed_unauthorized", "需要重新登录")]

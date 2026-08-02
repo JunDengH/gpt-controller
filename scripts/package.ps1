@@ -19,6 +19,7 @@ else {
 
 $artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 $publishDirectory = Join-Path $artifactRoot "publish"
+$helperPublishDirectory = Join-Path $artifactRoot "helper-publish"
 $portableArchive = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64.zip"
 $portableHash = "$portableArchive.sha256"
 $installer = Join-Path $artifactRoot "GptAccountManager-$Version-win-x64-setup.exe"
@@ -27,6 +28,7 @@ $installerHashPath = "$installer.sha256"
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 foreach ($stalePath in @(
     $publishDirectory
+    $helperPublishDirectory
     $portableArchive
     $portableHash
     $installer
@@ -44,6 +46,21 @@ dotnet publish (Join-Path $repoRoot "src\GptAccountManager\GptAccountManager.csp
     -p:PublishProfile=win-x64 `
     -p:Version=$Version `
     -o $publishDirectory
+
+dotnet publish (Join-Path $repoRoot "src\GptAccountManager.CredentialHelper\GptAccountManager.CredentialHelper.csproj") `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:Version=$Version `
+    -o $helperPublishDirectory
+
+$helperExecutable = Join-Path $helperPublishDirectory "GptAccountManager.CredentialHelper.exe"
+if (-not (Test-Path -LiteralPath $helperExecutable -PathType Leaf)) {
+    throw "Credential helper publish did not produce the expected executable."
+}
+
+Copy-Item -LiteralPath $helperExecutable -Destination $publishDirectory -Force
 
 Compress-Archive -Path (Join-Path $publishDirectory "*") -DestinationPath $portableArchive
 $hash = (Get-FileHash -LiteralPath $portableArchive -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -96,4 +113,7 @@ Write-Output "Created $portableHash"
 
 if (Test-Path -LiteralPath $publishDirectory) {
     Remove-Item -LiteralPath $publishDirectory -Recurse -Force
+}
+if (Test-Path -LiteralPath $helperPublishDirectory) {
+    Remove-Item -LiteralPath $helperPublishDirectory -Recurse -Force
 }
