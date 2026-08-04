@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Input;
 
 namespace GptController.Views;
@@ -21,6 +22,10 @@ public partial class DeepSeekConnectionDialog : Window
         {
             KeyHintText.Text = "留空将继续使用已加密保存的 Key；输入新 Key 会完成验证后替换。";
         }
+
+        AutomationProperties.SetIsRequiredForForm(
+            ApiKeyPasswordBox,
+            !hasExistingKey);
 
         UpdateSaveButton();
     }
@@ -88,5 +93,13 @@ public partial class DeepSeekConnectionDialog : Window
         SaveButton.IsEnabled =
             !string.IsNullOrWhiteSpace(NicknameTextBox.Text) &&
             (_hasExistingKey || !string.IsNullOrWhiteSpace(ApiKeyPasswordBox.Password));
+
+        AutomationProperties.SetHelpText(
+            SaveButton,
+            SaveButton.IsEnabled
+                ? "验证 API Key 和余额并安全保存连接"
+                : _hasExistingKey
+                    ? "输入连接名称后即可验证并保存"
+                    : "输入连接名称和 API Key 后即可验证并保存");
     }
 }

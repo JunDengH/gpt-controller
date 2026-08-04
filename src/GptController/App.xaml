@@ -13,12 +13,31 @@
             <Color x:Key="BorderSubtleColor">#3D3E41</Color>
             <Color x:Key="TextPrimaryColor">#F4F4F5</Color>
             <Color x:Key="TextSecondaryColor">#B8B9BD</Color>
-            <Color x:Key="TextMutedColor">#85868B</Color>
+            <Color x:Key="TextMutedColor">#9FA0A5</Color>
             <Color x:Key="AccentColor">#78A7FF</Color>
             <Color x:Key="AccentHoverColor">#8AB3FF</Color>
-            <Color x:Key="PrimaryColor">#4D78E6</Color>
-            <Color x:Key="PrimaryHoverColor">#5D86EC</Color>
+            <Color x:Key="PrimaryColor">#456CCA</Color>
+            <Color x:Key="PrimaryHoverColor">#496FCE</Color>
             <Color x:Key="DangerColor">#E48A8A</Color>
+            <Color x:Key="ControlBorderColor">#74757A</Color>
+            <Color x:Key="ControlBorderHoverColor">#8A8B90</Color>
+            <Color x:Key="FocusRingColor">#CCDFFF</Color>
+            <Color x:Key="DangerTintColor">#3A3032</Color>
+            <Color x:Key="DeepSeekTintColor">#273E3A</Color>
+            <Color x:Key="DeepSeekAccentColor">#61D9C3</Color>
+            <Color x:Key="SelectedSurfaceColor">#3F4043</Color>
+            <Color x:Key="NeutralBadgeColor">#353638</Color>
+            <Color x:Key="NeutralStrongColor">#696A6D</Color>
+            <Color x:Key="NeutralIconColor">#D4D5D8</Color>
+            <Color x:Key="CurrentBadgeColor">#626366</Color>
+            <Color x:Key="InfoTintColor">#27313E</Color>
+            <Color x:Key="SuccessAccentColor">#61D9C3</Color>
+            <Color x:Key="SuccessTintColor">#273E3A</Color>
+            <Color x:Key="WarningAccentColor">#F2C36B</Color>
+            <Color x:Key="WarningTintColor">#3A3326</Color>
+            <Color x:Key="DangerButtonColor">#B94C55</Color>
+            <Color x:Key="DangerButtonHoverColor">#CA5B64</Color>
+            <Color x:Key="DangerButtonFocusColor">#FFD3D6</Color>
 
             <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
             <SolidColorBrush x:Key="TitleBarBrush" Color="{StaticResource TitleBarColor}" />
@@ -35,6 +54,25 @@
             <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
             <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}" />
             <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+            <SolidColorBrush x:Key="ControlBorderBrush" Color="{StaticResource ControlBorderColor}" />
+            <SolidColorBrush x:Key="ControlBorderHoverBrush" Color="{StaticResource ControlBorderHoverColor}" />
+            <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRingColor}" />
+            <SolidColorBrush x:Key="DangerTintBrush" Color="{StaticResource DangerTintColor}" />
+            <SolidColorBrush x:Key="DeepSeekTintBrush" Color="{StaticResource DeepSeekTintColor}" />
+            <SolidColorBrush x:Key="DeepSeekAccentBrush" Color="{StaticResource DeepSeekAccentColor}" />
+            <SolidColorBrush x:Key="SelectedSurfaceBrush" Color="{StaticResource SelectedSurfaceColor}" />
+            <SolidColorBrush x:Key="NeutralBadgeBrush" Color="{StaticResource NeutralBadgeColor}" />
+            <SolidColorBrush x:Key="NeutralStrongBrush" Color="{StaticResource NeutralStrongColor}" />
+            <SolidColorBrush x:Key="NeutralIconBrush" Color="{StaticResource NeutralIconColor}" />
+            <SolidColorBrush x:Key="CurrentBadgeBrush" Color="{StaticResource CurrentBadgeColor}" />
+            <SolidColorBrush x:Key="InfoTintBrush" Color="{StaticResource InfoTintColor}" />
+            <SolidColorBrush x:Key="SuccessAccentBrush" Color="{StaticResource SuccessAccentColor}" />
+            <SolidColorBrush x:Key="SuccessTintBrush" Color="{StaticResource SuccessTintColor}" />
+            <SolidColorBrush x:Key="WarningAccentBrush" Color="{StaticResource WarningAccentColor}" />
+            <SolidColorBrush x:Key="WarningTintBrush" Color="{StaticResource WarningTintColor}" />
+            <SolidColorBrush x:Key="DangerButtonBrush" Color="{StaticResource DangerButtonColor}" />
+            <SolidColorBrush x:Key="DangerButtonHoverBrush" Color="{StaticResource DangerButtonHoverColor}" />
+            <SolidColorBrush x:Key="DangerButtonFocusBrush" Color="{StaticResource DangerButtonFocusColor}" />
 
             <DropShadowEffect x:Key="CardShadow"
                               BlurRadius="14"
@@ -54,6 +92,14 @@
                               Opacity="0.22"
                               ShadowDepth="2"
                               Color="#000000" />
+            <DropShadowEffect x:Key="DialogShadow"
+                              BlurRadius="30"
+                              Direction="270"
+                              Opacity="0.42"
+                              ShadowDepth="10"
+                              Color="#000000" />
+
+            <Thickness x:Key="DialogBodyMargin">28,24,28,26</Thickness>
 
             <Style TargetType="Window">
                 <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
@@ -102,7 +148,7 @@
                                 <Trigger Property="IsKeyboardFocused" Value="True">
                                     <Setter TargetName="ButtonBorder"
                                             Property="BorderBrush"
-                                            Value="{StaticResource AccentBrush}" />
+                                            Value="{StaticResource FocusRingBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.78" />
@@ -149,7 +195,7 @@
                                 <Trigger Property="IsKeyboardFocused" Value="True">
                                     <Setter TargetName="PrimaryBorder"
                                             Property="BorderBrush"
-                                            Value="#C8DAFF" />
+                                            Value="{StaticResource FocusRingBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="PrimaryBorder" Property="Opacity" Value="0.78" />
@@ -173,7 +219,27 @@
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderBrush" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+
+            <Style x:Key="DialogCloseButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource TitleBarButtonStyle}">
+                <Setter Property="Width" Value="38" />
+                <Setter Property="Height" Value="38" />
+                <Setter Property="MinHeight" Value="38" />
+            </Style>
+
+            <Style x:Key="SmallGhostButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource RoundedButtonStyle}">
+                <Setter Property="MinHeight" Value="32" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="12.5" />
             </Style>
 
             <Style x:Key="NavIconButtonStyle"
@@ -185,7 +251,7 @@
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderBrush" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -210,10 +276,7 @@
                                 <Trigger Property="IsKeyboardFocused" Value="True">
                                     <Setter TargetName="NavBorder"
                                             Property="BorderBrush"
-                                            Value="#68696C" />
-                                    <Setter TargetName="NavBorder"
-                                            Property="BorderThickness"
-                                            Value="1" />
+                                            Value="{StaticResource FocusRingBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="NavBorder" Property="Opacity" Value="0.72" />
@@ -233,7 +296,7 @@
                 <Setter Property="Padding" Value="7,0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderBrush" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="FontSize" Value="14" />
                 <Setter Property="Template">
                     <Setter.Value>
@@ -256,10 +319,7 @@
                                 <Trigger Property="IsKeyboardFocused" Value="True">
                                     <Setter TargetName="ActionBorder"
                                             Property="BorderBrush"
-                                            Value="{StaticResource AccentBrush}" />
-                                    <Setter TargetName="ActionBorder"
-                                            Property="BorderThickness"
-                                            Value="1" />
+                                            Value="{StaticResource FocusRingBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="ActionBorder" Property="Opacity" Value="0.72" />
@@ -269,6 +329,213 @@
                                     <Setter Property="Cursor" Value="Arrow" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="DialogInputBaseStyle" TargetType="Control">
+                <Setter Property="Height" Value="46" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            </Style>
+
+            <Style x:Key="DialogTextBoxStyle"
+                   TargetType="TextBox"
+                   BasedOn="{StaticResource DialogInputBaseStyle}">
+                <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Grid x:Name="InputRoot">
+                                <Border x:Name="InputBorder"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="12">
+                                    <ScrollViewer x:Name="PART_ContentHost"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                </Border>
+                                <Border x:Name="FocusBorder"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        CornerRadius="12"
+                                        IsHitTestVisible="False" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="InputBorder"
+                                            Property="BorderBrush"
+                                            Value="{StaticResource ControlBorderHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="FocusBorder"
+                                            Property="BorderBrush"
+                                            Value="{StaticResource FocusRingBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="InputRoot" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="DialogPasswordBoxStyle"
+                   TargetType="PasswordBox"
+                   BasedOn="{StaticResource DialogInputBaseStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="PasswordBox">
+                            <Grid x:Name="InputRoot">
+                                <Border x:Name="InputBorder"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="12">
+                                    <ScrollViewer x:Name="PART_ContentHost"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                </Border>
+                                <Border x:Name="FocusBorder"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        CornerRadius="12"
+                                        IsHitTestVisible="False" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="InputBorder"
+                                            Property="BorderBrush"
+                                            Value="{StaticResource ControlBorderHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="FocusBorder"
+                                            Property="BorderBrush"
+                                            Value="{StaticResource FocusRingBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="InputRoot" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="ContextMenu">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+                <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="6" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ContextMenu">
+                            <Border Padding="{TemplateBinding Padding}"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="12"
+                                    Effect="{StaticResource CardShadow}">
+                                <StackPanel IsItemsHost="True"
+                                            KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="MenuItem">
+                <Setter Property="MinHeight" Value="38" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Border x:Name="MenuItemBorder"
+                                    MinHeight="{TemplateBinding MinHeight}"
+                                    Padding="{TemplateBinding Padding}"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8">
+                                <ContentPresenter HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="MenuItemBorder"
+                                            Property="Background"
+                                            Value="{StaticResource SurfaceHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="MenuItemBorder"
+                                            Property="BorderBrush"
+                                            Value="{StaticResource FocusRingBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="MenuItemBorder" Property="Opacity" Value="0.45" />
+                                    <Setter Property="Cursor" Value="Arrow" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="Separator">
+                <Setter Property="Margin" Value="10,5" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Separator">
+                            <Border Height="1"
+                                    Background="{StaticResource BorderSubtleBrush}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="ToolTip">
+                <Setter Property="MaxWidth" Value="360" />
+                <Setter Property="Padding" Value="10,7" />
+                <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+                <Setter Property="TextBlock.TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Padding="{TemplateBinding Padding}"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="10"
+                                    Effect="{StaticResource CardShadow}">
+                                <ContentPresenter />
+                            </Border>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -424,7 +691,10 @@
                                 <Trigger Property="IsKeyboardFocused" Value="True">
                                     <Setter TargetName="SwitchTrack"
                                             Property="BorderBrush"
-                                            Value="{StaticResource AccentBrush}" />
+                                            Value="{StaticResource FocusRingBrush}" />
+                                    <Setter TargetName="SwitchTrack"
+                                            Property="BorderThickness"
+                                            Value="2" />
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter Property="Opacity" Value="0.45" />
@@ -496,6 +766,8 @@
 
             <Style TargetType="Slider">
                 <Setter Property="Height" Value="28" />
+                <Setter Property="Focusable" Value="True" />
+                <Setter Property="IsTabStop" Value="True" />
                 <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Template">
                     <Setter.Value>
@@ -516,7 +788,22 @@
                                                       Style="{StaticResource SliderIncreaseButtonStyle}" />
                                     </Track.IncreaseRepeatButton>
                                 </Track>
+                                <Border x:Name="SliderFocusBorder"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        CornerRadius="14"
+                                        IsHitTestVisible="False" />
                             </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="SliderFocusBorder"
+                                            Property="BorderBrush"
+                                            Value="{StaticResource FocusRingBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>

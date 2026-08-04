@@ -1,12 +1,13 @@
 using GptController.Models;
 using GptController.ViewModels;
+using System.Text.Json;
 
 namespace GptController.Tests;
 
 public sealed class AccountCardViewModelTests
 {
     [Fact]
-    public void DeepSeekCardUsesBalanceAndProviderSpecificLabels()
+    public void DeepSeekCardUsesProviderSpecificStatusLabels()
     {
         var card = new AccountCardViewModel(new DeepSeekConnection
         {
@@ -20,10 +21,143 @@ public sealed class AccountCardViewModelTests
 
         Assert.True(card.IsDeepSeek);
         Assert.Equal("DeepSeek API", card.ProviderDisplayName);
-        Assert.Equal("API Key •••• 1234", card.Email);
-        Assert.Equal("¥12.50", card.FiveHourRemainingText);
-        Assert.Equal("$2.00", card.WeeklyRemainingText);
         Assert.Equal("API 可用", card.QuotaStatusText);
+    }
+
+    [Fact]
+    public void DeepSeekCardExposesGenericApiPresentation()
+    {
+        var validatedAt = new DateTimeOffset(
+            2026,
+            8,
+            3,
+            9,
+            30,
+            0,
+            TimeSpan.Zero);
+        var card = new AccountCardViewModel(new DeepSeekConnection
+        {
+            Nickname = "DeepSeek V4",
+            Model = "deepseek-v4-flash",
+            KeyLastFour = "1234",
+            Status = DeepSeekConnectionStatus.Available,
+            LastValidatedAt = validatedAt,
+            CnyBalance = 12.5m,
+            UsdBalance = 2m
+        });
+
+        Assert.Equal(ConnectionCardKind.ApiProvider, card.CardKind);
+        var presentation = Assert.IsType<ApiConnectionCardPresentation>(
+            card.ApiPresentation);
+        Assert.Equal("DeepSeek API", presentation.ProviderName);
+        Assert.Equal("deepseek-v4-flash", presentation.Model);
+        Assert.Equal("Responses API", presentation.ProtocolDisplayName);
+        Assert.Equal("api.deepseek.com", presentation.EndpointHost);
+        Assert.Equal(ConnectionDisplayHealth.Healthy, presentation.Health);
+        Assert.Equal("API 可用", presentation.StatusText);
+        Assert.Equal(validatedAt, presentation.LastValidatedAt);
+        Assert.NotEqual("尚未验证", presentation.LastValidatedText);
+        Assert.Equal("CNY", presentation.PrimaryMetric.Label);
+        Assert.Equal("¥12.50", presentation.PrimaryMetric.ValueText);
+        Assert.Equal("人民币余额", presentation.PrimaryMetric.DetailText);
+        var metric = Assert.Single(presentation.Metrics);
+        Assert.Same(presentation.PrimaryMetric, metric);
+    }
+
+    [Fact]
+    public void OAuthCardDoesNotExposeApiPresentation()
+    {
+        var card = CreateCard(QuotaStatus.Fresh, null);
+
+        Assert.Equal(ConnectionCardKind.OAuthAccount, card.CardKind);
+        Assert.Null(card.ApiPresentation);
+    }
+
+    [Theory]
+    [InlineData(DeepSeekConnectionStatus.Unknown, ConnectionDisplayHealth.Unknown, "尚未验证")]
+    [InlineData(DeepSeekConnectionStatus.AuthenticationRequired, ConnectionDisplayHealth.AuthenticationRequired, "认证无效")]
+    [InlineData(DeepSeekConnectionStatus.PaymentRequired, ConnectionDisplayHealth.PaymentRequired, "余额不足")]
+    [InlineData(DeepSeekConnectionStatus.RateLimited, ConnectionDisplayHealth.RateLimited, "请求受限")]
+    [InlineData(DeepSeekConnectionStatus.Stale, ConnectionDisplayHealth.Stale, "显示上次数据")]
+    [InlineData(DeepSeekConnectionStatus.Unavailable, ConnectionDisplayHealth.Unavailable, "暂不可用")]
+    public void DeepSeekStatusMapsToGenericDisplayHealth(
+        DeepSeekConnectionStatus status,
+        ConnectionDisplayHealth expectedHealth,
+        string expectedText)
+    {
+        var card = new AccountCardViewModel(new DeepSeekConnection
+        {
+            Status = status
+        });
+
+        Assert.Equal(expectedHealth, card.ApiPresentation?.Health);
+        Assert.Equal(expectedText, card.ApiPresentation?.StatusText);
+    }
+
+    [Fact]
+    public void ApiPresentationHandlesMissingBalanceAndValidation()
+    {
+        var card = new AccountCardViewModel(new DeepSeekConnection());
+
+        var presentation = Assert.IsType<ApiConnectionCardPresentation>(
+            card.ApiPresentation);
+        Assert.Equal("尚未验证", presentation.LastValidatedText);
+        Assert.All(
+            presentation.Metrics,
+            metric => Assert.Equal("—", metric.ValueText));
+    }
+
+    [Fact]
+    public void ApiPresentationContractNeverExposesCredentialOrUsdBalance()
+    {
+        const string fullCredential = "sk-this-value-must-never-be-rendered-9876";
+        var card = new AccountCardViewModel(new DeepSeekConnection
+        {
+            KeyLastFour = fullCredential,
+            CnyBalance = 8.5m,
+            UsdBalance = 999m
+        });
+
+        var presentation = Assert.IsType<ApiConnectionCardPresentation>(
+            card.ApiPresentation);
+        var propertyNames = typeof(ApiConnectionCardPresentation)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToArray();
+        Assert.DoesNotContain(
+            propertyNames,
+            name => name.Contains("Key", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            propertyNames,
+            name => name.Contains("Credential", StringComparison.OrdinalIgnoreCase));
+
+        var serialized = JsonSerializer.Serialize(presentation);
+        Assert.DoesNotContain(fullCredential, serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("9876", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("USD", serialized, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("999", serialized, StringComparison.Ordinal);
+        Assert.Single(presentation.Metrics);
+        Assert.Equal("CNY", presentation.PrimaryMetric.Label);
+    }
+
+    [Fact]
+    public void UpdatingDeepSeekRaisesApiPresentationNotifications()
+    {
+        var card = new AccountCardViewModel(new DeepSeekConnection());
+        var changedProperties = new List<string?>();
+        card.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        card.UpdateDeepSeek(new DeepSeekConnection
+        {
+            KeyLastFour = "4321",
+            Status = DeepSeekConnectionStatus.Available
+        });
+
+        Assert.Contains(nameof(AccountCardViewModel.CardKind), changedProperties);
+        Assert.Contains(nameof(AccountCardViewModel.ApiPresentation), changedProperties);
+        Assert.Equal(
+            ConnectionDisplayHealth.Healthy,
+            card.ApiPresentation?.Health);
     }
 
     [Theory]

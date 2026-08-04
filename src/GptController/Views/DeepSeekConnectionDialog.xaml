@@ -11,25 +11,6 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None">
-    <Window.Resources>
-        <DropShadowEffect x:Key="DialogShadow"
-                          BlurRadius="30"
-                          Direction="270"
-                          Opacity="0.42"
-                          ShadowDepth="10"
-                          Color="#000000" />
-        <Style x:Key="DialogInputStyle" TargetType="Control">
-            <Setter Property="Height" Value="46" />
-            <Setter Property="Padding" Value="14,0" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-            <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontSize" Value="14" />
-        </Style>
-    </Window.Resources>
-
     <Grid Margin="28">
         <Border Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -54,12 +35,12 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Width="34" Height="34"
-                                    Background="#273E3A"
+                                    Background="{StaticResource DeepSeekTintBrush}"
                                     CornerRadius="17">
                                 <iconPacks:PackIconMaterial Width="18" Height="18"
                                                             HorizontalAlignment="Center"
                                                             VerticalAlignment="Center"
-                                                            Foreground="#61D9C3"
+                                                            Foreground="{StaticResource DeepSeekAccentBrush}"
                                                             Kind="Api" />
                             </Border>
                             <TextBlock Margin="11,0,0,0"
@@ -68,20 +49,27 @@
                                        FontWeight="SemiBold"
                                        Text="DeepSeek API 连接" />
                         </StackPanel>
-                        <Button Grid.Column="1" Width="38" Height="38" MinHeight="38"
-                                Style="{StaticResource TitleBarButtonStyle}"
+                        <Button Grid.Column="1"
+                                Style="{StaticResource DialogCloseButtonStyle}"
+                                AutomationProperties.Name="关闭 DeepSeek 连接弹窗"
                                 Click="Cancel_Click" ToolTip="关闭">
                             <iconPacks:PackIconMaterial Width="18" Height="18" Kind="Close" />
                         </Button>
                     </Grid>
                 </Border>
 
-                <StackPanel Grid.Row="1" Margin="28,24,28,26">
-                    <TextBlock FontSize="13.5" FontWeight="SemiBold" Text="连接名称" />
+                <StackPanel Grid.Row="1" Margin="{StaticResource DialogBodyMargin}">
+                    <TextBlock x:Name="NicknameLabel"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Text="连接名称" />
                     <TextBox x:Name="NicknameTextBox"
                              Margin="0,9,0,18"
                              MaxLength="40"
-                             Style="{StaticResource DialogInputStyle}"
+                             AutomationProperties.IsRequiredForForm="True"
+                             AutomationProperties.LabeledBy="{Binding ElementName=NicknameLabel}"
+                             AutomationProperties.HelpText="必填。设置一个便于识别的连接名称，最多 40 个字符。"
+                             Style="{StaticResource DialogTextBoxStyle}"
                              TextChanged="Input_Changed" />
 
                     <Grid>
@@ -89,13 +77,20 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock FontSize="13.5" FontWeight="SemiBold" Text="API Key" />
-                        <Button Grid.Column="1" Padding="8,2" MinHeight="26"
+                        <TextBlock x:Name="ApiKeyLabel"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Text="API Key" />
+                        <Button Grid.Column="1"
+                                Style="{StaticResource SmallGhostButtonStyle}"
+                                AutomationProperties.HelpText="在浏览器中打开 DeepSeek API Key 管理页面"
                                 Click="OpenApiKeys_Click" Content="创建 Key" />
                     </Grid>
                     <PasswordBox x:Name="ApiKeyPasswordBox"
                                  Margin="0,9,0,0"
-                                 Style="{StaticResource DialogInputStyle}"
+                                 AutomationProperties.LabeledBy="{Binding ElementName=ApiKeyLabel}"
+                                 AutomationProperties.HelpText="{Binding Text, ElementName=KeyHintText}"
+                                 Style="{StaticResource DialogPasswordBoxStyle}"
                                  PasswordChanged="Input_Changed" />
                     <TextBlock x:Name="KeyHintText"
                                Margin="2,6,0,18"
@@ -103,14 +98,17 @@
                                FontSize="11.5"
                                Text="Key 仅使用 Windows DPAPI 加密保存在当前用户账户下。" />
 
-                    <Border Padding="14" Background="#252D2C" CornerRadius="12">
+                    <Border Padding="14"
+                            Background="{StaticResource DeepSeekTintBrush}"
+                            CornerRadius="12">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <iconPacks:PackIconMaterial Width="19" Height="19"
-                                                        Foreground="#61D9C3" Kind="RobotOutline" />
+                                                        Foreground="{StaticResource DeepSeekAccentBrush}"
+                                                        Kind="RobotOutline" />
                             <StackPanel Grid.Column="1" Margin="12,0,0,0">
                                 <TextBlock FontWeight="SemiBold" Text="deepseek-v4-flash · Responses API" />
                                 <TextBlock Margin="0,4,0,0"
@@ -136,6 +134,7 @@
                                 IsCancel="True" Click="Cancel_Click" Content="取消" />
                         <Button x:Name="SaveButton" Grid.Column="2" Width="112" MinHeight="42"
                                 IsDefault="True" Click="Save_Click"
+                                AutomationProperties.HelpText="填写必填项后，验证 API Key 和余额并安全保存连接"
                                 Content="验证并保存"
                                 Style="{StaticResource PrimaryButtonStyle}" />
                     </Grid>

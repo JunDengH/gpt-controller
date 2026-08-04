@@ -109,7 +109,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         DeleteAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             DeleteAccountAsync,
             account => !IsBusy && !HasPendingAccountRecovery && account.CanDelete);
-        TestDeepSeekCommand = new AsyncRelayCommand<AccountCardViewModel>(
+        TestApiConnectionCommand = new AsyncRelayCommand<AccountCardViewModel>(
             TestDeepSeekAsync,
             account =>
                 !IsBusy &&
@@ -141,7 +141,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public AsyncRelayCommand<AccountCardViewModel> RefreshAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> RenameAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> DeleteAccountCommand { get; }
-    public AsyncRelayCommand<AccountCardViewModel> TestDeepSeekCommand { get; }
+    public AsyncRelayCommand<AccountCardViewModel> TestApiConnectionCommand { get; }
 
     public event EventHandler? AccountsChanged;
 
@@ -151,12 +151,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ? "编辑 DeepSeek API"
         : "添加 DeepSeek API";
 
-    public string CurrentProviderText => Accounts.FirstOrDefault(item => item.IsActive) switch
-    {
-        { IsDeepSeek: true } => "当前连接 · DeepSeek V4 Flash",
-        { } account => $"当前连接 · ChatGPT · {account.Nickname}",
-        _ => "当前连接 · 尚未选择"
-    };
+    public string CurrentProviderText => Accounts.FirstOrDefault(item => item.IsActive) is { } account
+        ? $"当前连接 · {account.ProviderDisplayName} · {account.Nickname}"
+        : "当前连接 · 尚未选择";
 
     public bool IsAccountsPage => !_isSettingsPage;
 
@@ -231,7 +228,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (_isUiPreview)
         {
             LoadUiPreviewAccounts();
-            StatusMessage = "界面预览模式 · 账号操作不会写入本地数据";
+            StatusMessage = "界面预览模式 · 连接操作不会写入本地数据";
             return;
         }
 
@@ -263,7 +260,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 _importService.HasLiveAccount &&
                 _dialogs.Ask(
                     "导入当前账号",
-                    "检测到 ChatGPT 当前登录账号。是否将它安全导入账号管理器？"))
+                    "检测到 ChatGPT 当前登录账号。是否将它安全导入账号管理器？",
+                    yesActionText: "导入",
+                    noActionText: "稍后"))
             {
                 await ImportCurrentCoreAsync(_lifetimeCts.Token);
             }
@@ -271,7 +270,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (!recovered)
             {
                 StatusMessage = Accounts.Count > 0
-                    ? "已加载账号数据"
+                    ? "已加载连接数据"
                     : "准备就绪";
             }
         }
@@ -370,7 +369,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (!File.Exists(_credentialHelperPath))
             {
                 throw new FileNotFoundException(
-                    "DeepSeek 凭据助手缺失，请使用完整的 1.2.0 应用包。",
+                    "DeepSeek 凭据助手缺失，请使用完整的 GPT Controller 应用包。",
                     _credentialHelperPath);
             }
 
@@ -506,7 +505,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 {
                     if (!silent)
                     {
-                        StatusMessage = "正在刷新所有账号额度…";
+                        StatusMessage = "正在刷新所有连接数据…";
                     }
 
                     foreach (var account in Accounts.ToList())
@@ -530,7 +529,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
                     StatusMessage = refreshedCount == 0
                         ? "已跳过确认需要重新登录的账号"
-                        : "额度已更新";
+                        : "连接数据已更新";
                 }
                 finally
                 {
@@ -544,7 +543,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = "部分额度刷新失败";
+            StatusMessage = "部分连接刷新失败";
             if (!silent)
             {
                 _dialogs.Error("刷新失败", exception.Message);
@@ -575,7 +574,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusMessage = "额度刷新失败";
+            StatusMessage = "连接刷新失败";
             _dialogs.Error("刷新失败", exception.Message);
         }
     }
@@ -667,12 +666,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (account.IsActive)
         {
-            StatusMessage = $"{account.Nickname} 已经是当前账号";
+            StatusMessage = $"{account.Nickname} 已经是当前连接";
             return;
         }
 
         if (_isUiPreview)
         {
+            if (!_dialogs.Confirm(
+                    "切换连接并重启 ChatGPT",
+                    $"切换到“{account.Nickname}”需要关闭并重启 ChatGPT。\n\n" +
+                    "正在运行的任务可能会被中断。不同认证组的历史记录只会暂时隐藏，不会被删除。",
+                    primaryActionText: "切换并重启"))
+            {
+                StatusMessage = "预览：已取消连接切换";
+                return;
+            }
+
             var cards = Accounts.Select(item => item.IsDeepSeek
                     ? new AccountCardViewModel(item.DeepSeekProfile! with
                     {
@@ -701,7 +710,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 "切换连接并重启 ChatGPT",
                 $"切换到“{account.Nickname}”需要关闭并重启 ChatGPT。\n\n" +
                 "正在运行的任务可能会被中断。不同认证组的历史记录只会暂时隐藏，不会被删除。\n\n" +
-                "默认操作是取消；确认继续吗？"))
+                "默认操作是取消；确认继续吗？",
+                primaryActionText: "切换并重启"))
         {
             StatusMessage = "已取消连接切换";
             return;
@@ -745,7 +755,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 _dialogs.Confirm(
                     "Codex 配置冲突",
                     result.Message +
-                    "\n\n按备份恢复只会覆盖 DeepSeek 接管的字段；新增的 MCP、项目信任和其他 Provider 会保留。确认继续吗？"))
+                    "\n\n按备份恢复只会覆盖 DeepSeek 接管的字段；新增的 MCP、项目信任和其他 Provider 会保留。确认继续吗？",
+                    primaryActionText: "按备份恢复"))
             {
                 result = await _connectionSwitchCoordinator.SwitchToChatGptAsync(
                     account.Id,
@@ -794,7 +805,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (_isUiPreview)
         {
-            StatusMessage = "界面预览模式不会修改账号昵称";
+            var previewNickname = _dialogs.Prompt(
+                "编辑昵称",
+                "账号昵称",
+                account.Nickname);
+            if (string.IsNullOrWhiteSpace(previewNickname) ||
+                previewNickname == account.Nickname)
+            {
+                return;
+            }
+
+            account.UpdateProfile(account.Profile with
+            {
+                Nickname = previewNickname.Trim()
+            });
+            NotifyConnectionsChanged();
+            StatusMessage = "预览：昵称已更新（未写入本地数据）";
             return;
         }
 
@@ -843,21 +869,31 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (_isUiPreview)
         {
-            StatusMessage = "界面预览模式不会删除账号";
+            if (_dialogs.Confirm(
+                    "删除连接",
+                    $"确定删除“{account.Nickname}”吗？\n\n预览模式只演示确认流程，不会修改本地数据。",
+                    primaryActionText: "删除",
+                    isDangerous: true))
+            {
+                StatusMessage = $"预览：已模拟删除 {account.Nickname}（数据未更改）";
+            }
+
             return;
         }
 
         if (account.IsActive)
         {
-            _dialogs.Info("无法删除", "请先切换到其他账号，再删除当前账号。");
+            _dialogs.Info("无法删除", "请先切换到其他连接，再删除当前连接。");
             return;
         }
 
         if (!_dialogs.Confirm(
-                account.IsDeepSeek ? "删除 DeepSeek 连接" : "删除账号",
+                "删除连接",
                 account.IsDeepSeek
                     ? $"确定删除“{account.Nickname}”吗？\n\n本机 DPAPI 加密的 API Key 与连接元数据会一并删除。"
-                    : $"确定删除“{account.Nickname}”吗？\n\n只会删除本软件保存的加密档案，不会退出或注销 OpenAI 账号。"))
+                    : $"确定删除“{account.Nickname}”吗？\n\n只会删除本软件保存的加密档案，不会退出或注销 OpenAI 账号。",
+                primaryActionText: "删除",
+                isDangerous: true))
         {
             return;
         }
@@ -875,7 +911,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 await _vault.DeleteProfileAsync(account.Id, _lifetimeCts.Token);
             }
             await ReloadAccountsAsync(_lifetimeCts.Token);
-            StatusMessage = account.IsDeepSeek ? "DeepSeek 连接已删除" : "账号档案已删除";
+            StatusMessage = "连接已删除";
         }
         catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
         {
@@ -896,9 +932,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 }
             }
 
-            StatusMessage = account.IsDeepSeek
-                ? "DeepSeek 连接删除失败"
-                : "账号删除失败";
+            StatusMessage = "连接删除失败";
             _dialogs.Error(
                 "删除失败",
                 RedactingLogger.Redact(exception.Message));
@@ -918,13 +952,25 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (_isUiPreview)
         {
+            if (!_dialogs.Confirm(
+                    "测试 DeepSeek Responses",
+                    "将发送一个要求仅回复 OK 的最小 Responses API 请求，会产生少量 Token 费用。",
+                    primaryActionText: "发送测试请求"))
+            {
+                return;
+            }
+
             StatusMessage = "预览：DeepSeek Responses 测试成功";
+            _dialogs.Info(
+                "Responses 测试成功",
+                "模型返回：OK\n响应 ID：resp_preview_120\nToken：3");
             return;
         }
 
         if (!_dialogs.Confirm(
                 "测试 DeepSeek Responses",
-                "将发送一个要求仅回复 OK 的最小 Responses API 请求，会产生少量 Token 费用。确认继续吗？"))
+                "将发送一个要求仅回复 OK 的最小 Responses API 请求，会产生少量 Token 费用。确认继续吗？",
+                primaryActionText: "发送测试请求"))
         {
             return;
         }
@@ -982,7 +1028,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (!_dialogs.Confirm(
                 "需要文件认证模式",
                 "检测到 Codex 正在使用系统钥匙串。本软件需要官方 auth.json 才能安全切换账号。\n\n" +
-                "是否备份 config.toml 并切换到 file 模式？"))
+                "是否备份 config.toml 并切换到 file 模式？",
+                primaryActionText: "备份并切换"))
         {
             return false;
         }
@@ -1388,7 +1435,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         RefreshAccountCommand.NotifyCanExecuteChanged();
         RenameAccountCommand.NotifyCanExecuteChanged();
         DeleteAccountCommand.NotifyCanExecuteChanged();
-        TestDeepSeekCommand.NotifyCanExecuteChanged();
+        TestApiConnectionCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()

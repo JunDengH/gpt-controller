@@ -6,7 +6,6 @@ using GptController.Services;
 using GptController.ViewModels;
 using GptController.Views;
 using Application = System.Windows.Application;
-using MessageBox = System.Windows.MessageBox;
 
 namespace GptController;
 
@@ -33,17 +32,19 @@ public partial class App : Application
                 argument,
                 "--ui-preview",
                 StringComparison.OrdinalIgnoreCase));
+#if DEBUG
+        isUiPreview = isUiPreview ||
+                      File.Exists(Path.Combine(AppContext.BaseDirectory, ".ui-preview"));
+#endif
         _singleInstance = new Mutex(
             initiallyOwned: true,
             LegacyCompatibility.ApplicationMutexName,
             out var isFirstInstance);
         if (!isFirstInstance)
         {
-            MessageBox.Show(
-                "GPT Controller 已经在运行。",
+            new DialogService().Info(
                 "GPT Controller",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                "GPT Controller 已经在运行。");
             Shutdown();
             return;
         }
@@ -182,11 +183,9 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
-            MessageBox.Show(
-                exception.Message,
+            new DialogService().Error(
                 "GPT Controller 启动失败",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                exception.Message);
             ExitApplication();
         }
     }

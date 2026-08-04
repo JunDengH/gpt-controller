@@ -11,70 +11,6 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None">
-    <Window.Resources>
-        <DropShadowEffect x:Key="DialogShadow"
-                          BlurRadius="30"
-                          Direction="270"
-                          Opacity="0.42"
-                          ShadowDepth="10"
-                          Color="#000000" />
-
-        <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Height" Value="48" />
-            <Setter Property="Padding" Value="14,0" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-            <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
-            <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}" />
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="InputBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="12">
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="InputBorder"
-                                        Property="BorderBrush"
-                                        Value="#66676B" />
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="InputBorder"
-                                        Property="BorderBrush"
-                                        Value="{StaticResource AccentBrush}" />
-                                <Setter TargetName="InputBorder"
-                                        Property="BorderThickness"
-                                        Value="2" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="InputBorder" Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DialogCloseButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource TitleBarButtonStyle}">
-            <Setter Property="Width" Value="38" />
-            <Setter Property="Height" Value="38" />
-            <Setter Property="MinHeight" Value="38" />
-        </Style>
-    </Window.Resources>
-
     <Grid Margin="28">
         <Border Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -123,6 +59,7 @@
 
                         <Button Grid.Column="1"
                                 Style="{StaticResource DialogCloseButtonStyle}"
+                                AutomationProperties.Name="关闭编辑昵称弹窗"
                                 Click="Cancel_Click"
                                 ToolTip="关闭">
                             <iconPacks:PackIconMaterial Width="18"
@@ -132,7 +69,7 @@
                     </Grid>
                 </Border>
 
-                <StackPanel Grid.Row="1" Margin="26,24,26,26">
+                <StackPanel Grid.Row="1" Margin="{StaticResource DialogBodyMargin}">
                     <TextBlock x:Name="FieldLabelText"
                                FontSize="14"
                                FontWeight="SemiBold" />
@@ -143,6 +80,9 @@
 
                     <TextBox x:Name="ValueTextBox"
                              MaxLength="40"
+                             AutomationProperties.IsRequiredForForm="True"
+                             AutomationProperties.LabeledBy="{Binding ElementName=FieldLabelText}"
+                             AutomationProperties.HelpText="设置一个便于识别的名称，连接凭据和认证状态不会改变。最多 40 个字符。"
                              Style="{StaticResource DialogTextBoxStyle}"
                              TextChanged="ValueTextBox_TextChanged" />
 
@@ -169,6 +109,7 @@
                                 Width="92"
                                 MinHeight="42"
                                 IsDefault="True"
+                                AutomationProperties.HelpText="输入昵称后保存；空白昵称不能保存"
                                 Click="Save_Click"
                                 Content="保存"
                                 Style="{StaticResource PrimaryButtonStyle}" />
