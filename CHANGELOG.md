@@ -7,6 +7,25 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-04
+
+### Changed
+
+- Standardized dialogs, menus, inputs, focus states, and destructive actions around a
+  consistent minimal visual system.
+- Replaced account-specific global copy with provider-neutral connection and model API
+  terminology.
+- Split OAuth accounts and API providers into independent card templates, with a reusable
+  API presentation model for future providers.
+- Redesigned API connection cards as a responsive status ledger for provider, model,
+  protocol, endpoint, CNY balance, validation state, and API actions.
+
+### Fixed
+
+- Removed API-key identifiers and USD balances from API card presentation data and UI.
+- Improved keyboard focus visibility, accessible control names, minimum action targets,
+  long-value tooltips, and compact-window behavior across the connection experience.
+
 ## [1.2.0] - 2026-08-02
 
 ### Added
@@ -55,7 +74,8 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Published the initial release under the previous application name.
 
-[Unreleased]: https://github.com/JunDengH/gpt-controller/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/JunDengH/gpt-controller/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/JunDengH/gpt-controller/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/JunDengH/gpt-controller/compare/v1.1.5...v1.2.0
 [1.1.5]: https://github.com/JunDengH/gpt-controller/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/JunDengH/gpt-controller/compare/v1.1.3...v1.1.4

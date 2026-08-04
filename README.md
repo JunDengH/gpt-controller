@@ -14,9 +14,9 @@
 - 显示 Free、Plus、Pro 5x、Pro 20x、Team、Business。
 - Team/Business 显示当前组织名称，其他套餐固定显示“个人账号”。
 - 切换前保存最新认证，失败时自动恢复并重启原账号。
-- 主窗口可快速切换和查看额度；系统托盘显示当前账号并提供打开、退出入口。
+- 主窗口可快速切换和查看额度；系统托盘显示当前连接并提供打开、退出入口。
 - 使用 `deepseek-v4-flash`、官方 `https://api.deepseek.com/` 和 Responses API。
-- 显示 DeepSeek CNY/USD 余额，并提供需要明确确认的最小 Responses 测试。
+- 显示 DeepSeek CNY 余额，并提供需要明确确认的最小 Responses 测试。
 - DeepSeek Key 通过 DPAPI 加密保存，Codex 通过无界面凭据助手按需读取，
   `config.toml`、日志和备份中不写入明文 Key。
 
@@ -27,7 +27,7 @@
 - ChatGPT managed OAuth 账号，或一个 DeepSeek API Key。
 - DeepSeek 连接要求 Codex CLI 0.146.0 或更高版本。
 - 自定义代理、多 DeepSeek Key、Chat Completions、V4 Pro、图片和文件输入不在
-  1.2.0 支持范围。
+  当前支持范围。
 
 ## 安全边界
 
@@ -75,7 +75,7 @@ WindowsApps 或重新分发该二进制。
 
 1. 点击“添加连接”，导入当前 ChatGPT 登录状态或通过 OAuth 添加账号。
 2. 也可选择“添加 DeepSeek API”，输入 Key；保存前会通过余额接口验证。
-3. 在连接卡片查看 ChatGPT 配额或 DeepSeek CNY/USD 余额。
+3. 在连接卡片查看 ChatGPT 配额或 DeepSeek CNY 余额。
 4. DeepSeek 卡片的“测试”会在确认后发送一个最小 Responses 请求并产生少量费用。
 5. 点击“切换”。如果 ChatGPT 正在运行，确认关闭和重启。
 

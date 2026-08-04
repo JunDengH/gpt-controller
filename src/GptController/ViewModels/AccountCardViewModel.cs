@@ -25,6 +25,12 @@ public sealed class AccountCardViewModel : ObservableObject
     public ConnectionProvider Provider => IsDeepSeek
         ? ConnectionProvider.DeepSeek
         : ConnectionProvider.ChatGpt;
+    public ConnectionCardKind CardKind => IsDeepSeek
+        ? ConnectionCardKind.ApiProvider
+        : ConnectionCardKind.OAuthAccount;
+    public ApiConnectionCardPresentation? ApiPresentation => IsDeepSeek
+        ? CreateDeepSeekPresentation(_deepSeek!)
+        : null;
     public bool IsDeepSeek => _deepSeek is not null;
     public AccountProfile Profile => _profile ?? throw new InvalidOperationException(
         "DeepSeek 连接不包含 ChatGPT 账号档案。");
@@ -32,9 +38,7 @@ public sealed class AccountCardViewModel : ObservableObject
     public DeepSeekConnection? DeepSeekProfile => _deepSeek;
     public Guid Id => IsDeepSeek ? DeepSeekCardId : Profile.Id;
     public string Nickname => IsDeepSeek ? _deepSeek!.Nickname : Profile.Nickname;
-    public string Email => IsDeepSeek
-        ? $"API Key {_deepSeek!.MaskedApiKey}"
-        : Profile.Email;
+    public string Email => Profile.Email;
     public bool IsActive => IsDeepSeek ? _deepSeek!.IsActive : Profile.IsActive;
     public bool CanDelete => !IsActive;
     public string ProviderDisplayName => IsDeepSeek ? "DeepSeek API" : "ChatGPT OAuth";
@@ -180,6 +184,8 @@ public sealed class AccountCardViewModel : ObservableObject
 
     private void RaiseConnectionPropertiesChanged()
     {
+        OnPropertyChanged(nameof(CardKind));
+        OnPropertyChanged(nameof(ApiPresentation));
         OnPropertyChanged(nameof(Profile));
         OnPropertyChanged(nameof(ChatGptProfile));
         OnPropertyChanged(nameof(DeepSeekProfile));
@@ -223,6 +229,59 @@ public sealed class AccountCardViewModel : ObservableObject
             true => "官方 API · 余额可用",
             false => "官方 API · 当前不可用",
             null => "官方 API · 等待验证"
+        };
+
+    private static ApiConnectionCardPresentation CreateDeepSeekPresentation(
+        DeepSeekConnection connection)
+    {
+        var health = MapDeepSeekHealth(connection.Status);
+        var primaryMetric = new ApiMetricPresentation(
+            "CNY",
+            FormatMoney(connection.CnyBalance, "¥"),
+            "人民币余额");
+
+        return new ApiConnectionCardPresentation
+        {
+            ProviderName = "DeepSeek API",
+            Model = connection.Model,
+            ProtocolDisplayName = "Responses API",
+            EndpointHost = new Uri(DeepSeekDefaults.BaseUrl).Host,
+            Health = health,
+            StatusText = FormatDeepSeekStatus(connection.Status),
+            LastValidatedAt = connection.LastValidatedAt,
+            LastValidatedText = connection.LastValidatedAt is { } validated
+                ? $"{validated.ToLocalTime():yyyy-MM-dd HH:mm}"
+                : "尚未验证",
+            PrimaryMetric = primaryMetric,
+            Metrics = [primaryMetric]
+        };
+    }
+
+    private static ConnectionDisplayHealth MapDeepSeekHealth(
+        DeepSeekConnectionStatus status) => status switch
+        {
+            DeepSeekConnectionStatus.Available => ConnectionDisplayHealth.Healthy,
+            DeepSeekConnectionStatus.AuthenticationRequired =>
+                ConnectionDisplayHealth.AuthenticationRequired,
+            DeepSeekConnectionStatus.PaymentRequired =>
+                ConnectionDisplayHealth.PaymentRequired,
+            DeepSeekConnectionStatus.RateLimited =>
+                ConnectionDisplayHealth.RateLimited,
+            DeepSeekConnectionStatus.Stale => ConnectionDisplayHealth.Stale,
+            DeepSeekConnectionStatus.Unavailable => ConnectionDisplayHealth.Unavailable,
+            _ => ConnectionDisplayHealth.Unknown
+        };
+
+    private static string FormatDeepSeekStatus(DeepSeekConnectionStatus status) =>
+        status switch
+        {
+            DeepSeekConnectionStatus.Available => "API 可用",
+            DeepSeekConnectionStatus.AuthenticationRequired => "认证无效",
+            DeepSeekConnectionStatus.PaymentRequired => "余额不足",
+            DeepSeekConnectionStatus.RateLimited => "请求受限",
+            DeepSeekConnectionStatus.Stale => "显示上次数据",
+            DeepSeekConnectionStatus.Unavailable => "暂不可用",
+            _ => "尚未验证"
         };
 
     private static string FormatMoney(decimal? amount, string symbol) =>
