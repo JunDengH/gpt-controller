@@ -22,6 +22,34 @@ public sealed class CurrentAccountImportService
 
     public bool HasLiveAccount => File.Exists(_paths.LiveAuthFile);
 
+    public async Task<AccountProfile?> FindLiveProfileAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(_paths.LiveAuthFile))
+        {
+            return null;
+        }
+
+        var credential = await File.ReadAllBytesAsync(_paths.LiveAuthFile, cancellationToken);
+        try
+        {
+            var auth = AuthDocument.Inspect(credential);
+            if (!auth.HasManagedTokens)
+            {
+                return null;
+            }
+
+            var claims = JwtClaimsReader.Read(auth);
+            return string.IsNullOrWhiteSpace(claims.AccountId)
+                ? null
+                : await _vault.FindByAccountIdAsync(claims.AccountId, cancellationToken);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(credential);
+        }
+    }
+
     public async Task<AccountProfile> ImportAsync(
         CancellationToken cancellationToken = default)
     {

@@ -1,4 +1,5 @@
 using System.Windows;
+using GptController.Models;
 using GptController.Views;
 
 namespace GptController.Services;
@@ -57,18 +58,6 @@ public sealed class DialogService
                 MessageDialogKind.Error,
                 PrimaryButtonText: actionText));
 
-    public string? Prompt(string title, string label, string initialValue)
-    {
-        var dialog = new TextPromptDialog(title, label, initialValue)
-        {
-            Owner = Application.Current?.MainWindow
-        };
-
-        return dialog.ShowDialog() == true
-            ? dialog.Value
-            : null;
-    }
-
     public DeepSeekConnectionInput? PromptDeepSeekConnection(
         string nickname,
         bool hasExistingKey)
@@ -81,6 +70,34 @@ public sealed class DialogService
         return dialog.ShowDialog() == true
             ? dialog.Value
             : null;
+    }
+
+    public QwenConnectionInput? PromptQwenConnection(QwenConnection? existing)
+    {
+        var dialog = new QwenConnectionDialog(existing)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+        return dialog.ShowDialog() == true ? dialog.Value : null;
+    }
+
+    public string? PromptApiModel(
+        string providerName,
+        IReadOnlyList<ApiModelDescriptor> models,
+        string selectedModel,
+        bool requiresPaidValidation,
+        Func<CancellationToken, Task<IReadOnlyList<ApiModelDescriptor>>>? refresh = null)
+    {
+        var dialog = new ApiModelSelectionDialog(
+            providerName,
+            models,
+            selectedModel,
+            requiresPaidValidation,
+            refresh)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+        return dialog.ShowDialog() == true ? dialog.Value : null;
     }
 
     public MessageDialogResult Show(MessageDialogOptions options)

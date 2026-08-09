@@ -31,11 +31,22 @@ public sealed class ConnectionIndexStore
                 return null;
             }
 
-            await using var stream = File.OpenRead(_paths.ConnectionIndexFile);
-            var index = await JsonSerializer.DeserializeAsync<ConnectionIndex>(
-                stream,
-                JsonOptions,
-                cancellationToken);
+            ConnectionIndex? index;
+            await using (var stream = File.OpenRead(_paths.ConnectionIndexFile))
+            {
+                index = await JsonSerializer.DeserializeAsync<ConnectionIndex>(
+                    stream,
+                    JsonOptions,
+                    cancellationToken);
+            }
+            if (index?.SchemaVersion == 1)
+            {
+                index = MigrateV1(index);
+                await AtomicFile.WriteAllBytesAsync(
+                    _paths.ConnectionIndexFile,
+                    JsonSerializer.SerializeToUtf8Bytes(index, JsonOptions),
+                    cancellationToken);
+            }
             Validate(index);
             return index;
         }
@@ -52,6 +63,13 @@ public sealed class ConnectionIndexStore
     public async Task<ConnectionIndex> SaveProjectionAsync(
         IReadOnlyCollection<AccountProfile> profiles,
         DeepSeekConnection? deepSeek,
+        CancellationToken cancellationToken = default) =>
+        await SaveProjectionAsync(profiles, deepSeek, null, cancellationToken);
+
+    public async Task<ConnectionIndex> SaveProjectionAsync(
+        IReadOnlyCollection<AccountProfile> profiles,
+        DeepSeekConnection? deepSeek,
+        QwenConnection? qwen,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profiles);
@@ -74,18 +92,20 @@ public sealed class ConnectionIndexStore
                 .OrderBy(item => item.Id, StringComparer.Ordinal)
                 .ToArray();
             var activeChatGpt = chatGpt.Where(item => item.IsActive).ToArray();
-            var activeCount = activeChatGpt.Length + (deepSeek?.IsActive == true ? 1 : 0);
+            var apiConnections = BuildApiConnections(deepSeek, qwen);
+            var activeApi = apiConnections.Where(item => item.IsActive).ToArray();
+            var activeCount = activeChatGpt.Length + activeApi.Length;
             if (activeCount > 1)
             {
                 throw new InvalidDataException(
                     "More than one provider is marked active in the connection data.");
             }
 
-            var active = deepSeek?.IsActive == true
+            var active = activeApi.SingleOrDefault() is { } activeProvider
                 ? new ActiveConnectionRef
                 {
-                    Provider = ConnectionProvider.DeepSeek,
-                    ConnectionId = DeepSeekConnection.FixedId
+                    Provider = activeProvider.Provider,
+                    ConnectionId = activeProvider.Id
                 }
                 : activeChatGpt.SingleOrDefault() is { } chatGptActive
                     ? new ActiveConnectionRef
@@ -97,6 +117,7 @@ public sealed class ConnectionIndexStore
             var index = new ConnectionIndex
             {
                 ChatGptConnections = chatGpt,
+                ApiConnections = apiConnections,
                 DeepSeekConnection = deepSeek,
                 ActiveConnection = active,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -133,24 +154,40 @@ public sealed class ConnectionIndexStore
 
         if (index.DeepSeekConnection is { } deepSeek &&
             (!string.Equals(deepSeek.Id, DeepSeekConnection.FixedId, StringComparison.Ordinal) ||
-             !string.Equals(deepSeek.Model, DeepSeekDefaults.Model, StringComparison.Ordinal)))
+             !DeepSeekDefaults.IsSupportedModel(deepSeek.Model)))
         {
             throw new InvalidDataException("The DeepSeek connection index is invalid.");
         }
 
+        if (index.ApiConnections.Any(item =>
+                string.IsNullOrWhiteSpace(item.Id) ||
+                string.IsNullOrWhiteSpace(item.Model) ||
+                item.Provider is not (ConnectionProvider.DeepSeek or ConnectionProvider.Qwen) ||
+                (item.Provider == ConnectionProvider.DeepSeek &&
+                 (!string.Equals(item.Id, DeepSeekConnection.FixedId, StringComparison.Ordinal) ||
+                  !DeepSeekDefaults.IsSupportedModel(item.Model))) ||
+                (item.Provider == ConnectionProvider.Qwen &&
+                 (!string.Equals(item.Id, QwenConnection.FixedId, StringComparison.Ordinal) ||
+                  !item.Model.StartsWith("qwen", StringComparison.OrdinalIgnoreCase)))) ||
+            index.ApiConnections.Select(item => item.Provider).Distinct().Count() !=
+            index.ApiConnections.Count)
+        {
+            throw new InvalidDataException("The API connection index is invalid.");
+        }
+
         var activeChatGpt = index.ChatGptConnections.Where(item => item.IsActive).ToArray();
-        var activeCount = activeChatGpt.Length +
-                          (index.DeepSeekConnection?.IsActive == true ? 1 : 0);
+        var activeApi = index.ApiConnections.Where(item => item.IsActive).ToArray();
+        var activeCount = activeChatGpt.Length + activeApi.Length;
         if (activeCount > 1)
         {
             throw new InvalidDataException("The connection index has multiple active providers.");
         }
 
-        var expected = index.DeepSeekConnection?.IsActive == true
+        var expected = activeApi.SingleOrDefault() is { } activeProvider
             ? new ActiveConnectionRef
             {
-                Provider = ConnectionProvider.DeepSeek,
-                ConnectionId = DeepSeekConnection.FixedId
+                Provider = activeProvider.Provider,
+                ConnectionId = activeProvider.Id
             }
             : activeChatGpt.SingleOrDefault() is { } active
                 ? new ActiveConnectionRef
@@ -163,5 +200,50 @@ public sealed class ConnectionIndexStore
         {
             throw new InvalidDataException("The active connection reference is inconsistent.");
         }
+    }
+
+    private static IReadOnlyList<ApiConnection> BuildApiConnections(
+        DeepSeekConnection? deepSeek,
+        QwenConnection? qwen)
+    {
+        var connections = new List<ApiConnection>(2);
+        if (deepSeek is not null)
+        {
+            connections.Add(new ApiConnection
+            {
+                Id = deepSeek.Id,
+                Provider = ConnectionProvider.DeepSeek,
+                Model = deepSeek.Model,
+                IsActive = deepSeek.IsActive,
+                UpdatedAt = deepSeek.UpdatedAt
+            });
+        }
+
+        if (qwen is not null)
+        {
+            connections.Add(new ApiConnection
+            {
+                Id = qwen.Id,
+                Provider = ConnectionProvider.Qwen,
+                Model = qwen.Model,
+                IsActive = qwen.IsActive,
+                Region = qwen.Region.ToString(),
+                WorkspaceId = qwen.WorkspaceId,
+                UpdatedAt = qwen.UpdatedAt
+            });
+        }
+
+        return connections.OrderBy(item => item.Provider).ToArray();
+    }
+
+    private static ConnectionIndex MigrateV1(ConnectionIndex legacy)
+    {
+        var apiConnections = BuildApiConnections(legacy.DeepSeekConnection, null);
+        return legacy with
+        {
+            SchemaVersion = ConnectionIndex.CurrentSchemaVersion,
+            ApiConnections = apiConnections,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
     }
 }

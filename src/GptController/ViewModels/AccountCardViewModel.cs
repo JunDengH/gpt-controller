@@ -7,9 +7,12 @@ public sealed class AccountCardViewModel : ObservableObject
 {
     public static readonly Guid DeepSeekCardId =
         new("DEE05EE4-0000-4000-8000-000000000004");
+    public static readonly Guid QwenCardId =
+        new("0A7E0000-0000-4000-8000-000000000001");
 
     private AccountProfile? _profile;
     private DeepSeekConnection? _deepSeek;
+    private QwenConnection? _qwen;
     private bool _isRefreshing;
 
     public AccountCardViewModel(AccountProfile profile)
@@ -22,72 +25,137 @@ public sealed class AccountCardViewModel : ObservableObject
         _deepSeek = connection;
     }
 
+    public AccountCardViewModel(QwenConnection connection)
+    {
+        _qwen = connection;
+    }
+
     public ConnectionProvider Provider => IsDeepSeek
         ? ConnectionProvider.DeepSeek
-        : ConnectionProvider.ChatGpt;
-    public ConnectionCardKind CardKind => IsDeepSeek
+        : IsQwen
+            ? ConnectionProvider.Qwen
+            : ConnectionProvider.ChatGpt;
+    public ConnectionCardKind CardKind => IsApiProvider
         ? ConnectionCardKind.ApiProvider
         : ConnectionCardKind.OAuthAccount;
     public ApiConnectionCardPresentation? ApiPresentation => IsDeepSeek
         ? CreateDeepSeekPresentation(_deepSeek!)
-        : null;
+        : IsQwen
+            ? CreateQwenPresentation(_qwen!)
+            : null;
+    public bool IsApiProvider => _deepSeek is not null || _qwen is not null;
     public bool IsDeepSeek => _deepSeek is not null;
+    public bool IsQwen => _qwen is not null;
     public AccountProfile Profile => _profile ?? throw new InvalidOperationException(
-        "DeepSeek 连接不包含 ChatGPT 账号档案。");
+        "API 连接不包含 ChatGPT 账号档案。");
     public AccountProfile? ChatGptProfile => _profile;
     public DeepSeekConnection? DeepSeekProfile => _deepSeek;
-    public Guid Id => IsDeepSeek ? DeepSeekCardId : Profile.Id;
-    public string Nickname => IsDeepSeek ? _deepSeek!.Nickname : Profile.Nickname;
-    public string Email => Profile.Email;
-    public bool IsActive => IsDeepSeek ? _deepSeek!.IsActive : Profile.IsActive;
-    public bool CanDelete => !IsActive;
-    public string ProviderDisplayName => IsDeepSeek ? "DeepSeek API" : "ChatGPT OAuth";
+    public QwenConnection? QwenProfile => _qwen;
+    public Guid Id => IsDeepSeek ? DeepSeekCardId : IsQwen ? QwenCardId : Profile.Id;
+    public string Nickname => IsDeepSeek
+        ? _deepSeek!.Nickname
+        : IsQwen
+            ? "千问 API"
+            : Profile.Nickname;
+    public string Email => IsApiProvider ? string.Empty : Profile.Email;
+    public bool IsActive => IsDeepSeek
+        ? _deepSeek!.IsActive
+        : IsQwen
+            ? _qwen!.IsActive
+            : Profile.IsActive;
+    public bool CanDelete => IsApiProvider || !IsActive;
+    public string ProviderDisplayName => IsDeepSeek
+        ? "DeepSeek API"
+        : IsQwen
+            ? "千问 API"
+            : "ChatGPT OAuth";
     public bool IsOrganization =>
-        !IsDeepSeek && Profile.Ownership.Kind == AccountOwnershipKind.Organization;
+        !IsApiProvider && Profile.Ownership.Kind == AccountOwnershipKind.Organization;
     public string PlanDisplayName => IsDeepSeek
         ? $"{_deepSeek!.Model} · Responses API"
-        : Profile.PlanDisplayName;
+        : IsQwen
+            ? $"{_qwen!.Model} · Responses API"
+            : Profile.PlanDisplayName;
+    public string ApiModelDisplayName => IsDeepSeek
+        ? DeepSeekDefaults.GetModelDisplayName(_deepSeek!.Model)
+        : IsQwen
+            ? _qwen!.Model
+            : string.Empty;
+    public string ApiModelDescription => IsDeepSeek
+        ? _deepSeek!.Model == DeepSeekDefaults.ProModel
+            ? "更强推理与复杂编码"
+            : "高并发、快速且经济"
+        : IsQwen
+            ? $"{QwenRegions.GetDisplayName(_qwen!.Region)} · 动态模型列表"
+            : string.Empty;
+    public bool IsFlashModel =>
+        IsDeepSeek && _deepSeek!.Model == DeepSeekDefaults.FlashModel;
+    public bool IsProModel =>
+        IsDeepSeek && _deepSeek!.Model == DeepSeekDefaults.ProModel;
     public string OwnershipDisplayName => IsDeepSeek
         ? FormatDeepSeekAvailability(_deepSeek!)
-        : Profile.OwnershipDisplayName;
-    public string MetricsTitle => IsDeepSeek ? "API 余额" : "使用额度";
-    public string PrimaryMetricLabel => IsDeepSeek ? "CNY" : "5 小时";
-    public string SecondaryMetricLabel => IsDeepSeek ? "USD" : "每周";
-    public string UpdatedLabel => IsDeepSeek ? "最近验证" : "数据更新";
-    public string RefreshToolTip => IsDeepSeek ? "刷新 API 余额" : "刷新额度与会员信息";
-    public string EditToolTip => IsDeepSeek ? "编辑 DeepSeek 连接" : "编辑昵称";
+        : IsQwen
+            ? "阿里云百炼 · Responses API"
+            : Profile.OwnershipDisplayName;
+    public string CompanyDisplayName =>
+        !IsApiProvider &&
+        IsOrganization &&
+        !string.IsNullOrWhiteSpace(Profile.Ownership.DisplayName) &&
+        !string.Equals(
+            Profile.Ownership.DisplayName,
+            "企业账号（名称未知）",
+            StringComparison.Ordinal)
+            ? Profile.Ownership.DisplayName!
+            : string.Empty;
+    public string MetricsTitle => IsDeepSeek ? "API 余额" : IsQwen ? "模型状态" : "使用额度";
+    public string PrimaryMetricLabel => IsDeepSeek ? "CNY" : IsQwen ? "可用模型" : "5 小时";
+    public string SecondaryMetricLabel => IsDeepSeek ? "USD" : IsQwen ? "地域" : "每周";
+    public string UpdatedLabel => IsApiProvider ? "最近验证" : "数据更新";
+    public string RefreshToolTip => IsDeepSeek
+        ? "刷新 API 余额"
+        : IsQwen
+            ? "重新获取千问模型列表"
+            : "刷新额度与会员信息";
 
     public double FiveHourRemainingValue =>
-        IsDeepSeek ? 0 : Math.Clamp(Profile.Quota?.FiveHourRemainingPercent ?? 0, 0, 100);
+        IsApiProvider ? 0 : Math.Clamp(Profile.Quota?.FiveHourRemainingPercent ?? 0, 0, 100);
 
     public string FiveHourRemainingText =>
         IsDeepSeek
             ? FormatMoney(_deepSeek!.CnyBalance, "¥")
-            : FormatRemaining(Profile.Quota?.FiveHourRemainingPercent);
+            : IsQwen
+                ? _qwen!.Models.Count.ToString()
+                : FormatRemaining(Profile.Quota?.FiveHourRemainingPercent);
 
     public string FiveHourResetValueText =>
         IsDeepSeek
             ? "人民币总余额"
-            : FormatReset(Profile.Quota?.FiveHourResetsAt);
+            : IsQwen
+                ? "动态获取"
+                : FormatReset(Profile.Quota?.FiveHourResetsAt);
 
     public double WeeklyRemainingValue =>
-        IsDeepSeek ? 0 : Math.Clamp(Profile.Quota?.RemainingPercent ?? 0, 0, 100);
+        IsApiProvider ? 0 : Math.Clamp(Profile.Quota?.RemainingPercent ?? 0, 0, 100);
 
     public string WeeklyRemainingText =>
         IsDeepSeek
             ? FormatMoney(_deepSeek!.UsdBalance, "$")
-            : FormatRemaining(Profile.Quota?.RemainingPercent);
+            : IsQwen
+                ? QwenRegions.GetDisplayName(_qwen!.Region)
+                : FormatRemaining(Profile.Quota?.RemainingPercent);
 
     public string WeeklyResetValueText =>
         IsDeepSeek
             ? "美元总余额"
-            : FormatReset(Profile.Quota?.ResetsAt);
+            : IsQwen
+                ? "模型地域"
+                : FormatReset(Profile.Quota?.ResetsAt);
 
-    public string PrimaryMetricDetailText => IsDeepSeek
+    public string PrimaryMetricDetailText => IsApiProvider
         ? FiveHourResetValueText
         : $"重置 {FiveHourResetValueText}";
 
-    public string SecondaryMetricDetailText => IsDeepSeek
+    public string SecondaryMetricDetailText => IsApiProvider
         ? WeeklyResetValueText
         : $"重置 {WeeklyResetValueText}";
 
@@ -97,6 +165,8 @@ public sealed class AccountCardViewModel : ObservableObject
 
     public string QuotaResetText =>
         IsDeepSeek
+            ? SecondaryMetricDetailText
+            : IsQwen
             ? SecondaryMetricDetailText
             : Profile.Quota?.ResetsAt is { } reset
             ? $"重置：{reset.ToLocalTime():M月d日 HH:mm}"
@@ -109,6 +179,10 @@ public sealed class AccountCardViewModel : ObservableObject
             ? _deepSeek!.LastValidatedAt is { } validated
                 ? $"验证：{validated.ToLocalTime():M月d日 HH:mm}"
                 : "尚未验证 API"
+            : IsQwen
+            ? _qwen!.LastValidatedAt is { } qwenValidated
+                ? $"验证：{qwenValidated.ToLocalTime():M月d日 HH:mm}"
+                : "尚未验证 API"
             : Profile.Quota is { } quota
             ? $"更新：{quota.FetchedAt.ToLocalTime():M月d日 HH:mm}"
             : "尚未获取额度";
@@ -117,6 +191,10 @@ public sealed class AccountCardViewModel : ObservableObject
         IsDeepSeek
             ? _deepSeek!.LastValidatedAt is { } validated
                 ? $"{validated.ToLocalTime():yyyy-MM-dd HH:mm}"
+                : "尚未验证"
+            : IsQwen
+            ? _qwen!.LastValidatedAt is { } qwenValidated
+                ? $"{qwenValidated.ToLocalTime():yyyy-MM-dd HH:mm}"
                 : "尚未验证"
             : Profile.Quota is { } quota
             ? $"{quota.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
@@ -133,6 +211,8 @@ public sealed class AccountCardViewModel : ObservableObject
             DeepSeekConnectionStatus.Unavailable => "暂不可用",
             _ => "尚未验证"
         }
+        : IsQwen
+        ? FormatApiStatus(_qwen!.Status)
         : Profile.Quota switch
         {
             { Status: QuotaStatus.Fresh } => "数据最新",
@@ -149,6 +229,8 @@ public sealed class AccountCardViewModel : ObservableObject
 
     public bool HasFreshQuota => IsDeepSeek
         ? _deepSeek!.Status == DeepSeekConnectionStatus.Available
+        : IsQwen
+        ? _qwen!.Status == ApiConnectionStatus.Available
         : Profile.Quota?.Status == QuotaStatus.Fresh;
 
     public bool IsRefreshing
@@ -182,6 +264,20 @@ public sealed class AccountCardViewModel : ObservableObject
         RaiseConnectionPropertiesChanged();
     }
 
+    public void UpdateQwen(QwenConnection connection)
+    {
+        if (!IsQwen || !string.Equals(
+                connection.Id,
+                QwenConnection.FixedId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("不能用其他连接更新当前卡片。");
+        }
+
+        _qwen = connection;
+        RaiseConnectionPropertiesChanged();
+    }
+
     private void RaiseConnectionPropertiesChanged()
     {
         OnPropertyChanged(nameof(CardKind));
@@ -189,8 +285,11 @@ public sealed class AccountCardViewModel : ObservableObject
         OnPropertyChanged(nameof(Profile));
         OnPropertyChanged(nameof(ChatGptProfile));
         OnPropertyChanged(nameof(DeepSeekProfile));
+        OnPropertyChanged(nameof(QwenProfile));
         OnPropertyChanged(nameof(Provider));
+        OnPropertyChanged(nameof(IsApiProvider));
         OnPropertyChanged(nameof(IsDeepSeek));
+        OnPropertyChanged(nameof(IsQwen));
         OnPropertyChanged(nameof(Nickname));
         OnPropertyChanged(nameof(Email));
         OnPropertyChanged(nameof(IsActive));
@@ -198,13 +297,17 @@ public sealed class AccountCardViewModel : ObservableObject
         OnPropertyChanged(nameof(ProviderDisplayName));
         OnPropertyChanged(nameof(IsOrganization));
         OnPropertyChanged(nameof(PlanDisplayName));
+        OnPropertyChanged(nameof(ApiModelDisplayName));
+        OnPropertyChanged(nameof(ApiModelDescription));
+        OnPropertyChanged(nameof(IsFlashModel));
+        OnPropertyChanged(nameof(IsProModel));
         OnPropertyChanged(nameof(OwnershipDisplayName));
+        OnPropertyChanged(nameof(CompanyDisplayName));
         OnPropertyChanged(nameof(MetricsTitle));
         OnPropertyChanged(nameof(PrimaryMetricLabel));
         OnPropertyChanged(nameof(SecondaryMetricLabel));
         OnPropertyChanged(nameof(UpdatedLabel));
         OnPropertyChanged(nameof(RefreshToolTip));
-        OnPropertyChanged(nameof(EditToolTip));
         OnPropertyChanged(nameof(FiveHourRemainingValue));
         OnPropertyChanged(nameof(FiveHourRemainingText));
         OnPropertyChanged(nameof(FiveHourResetValueText));
@@ -257,6 +360,32 @@ public sealed class AccountCardViewModel : ObservableObject
         };
     }
 
+    private static ApiConnectionCardPresentation CreateQwenPresentation(
+        QwenConnection connection)
+    {
+        var primaryMetric = new ApiMetricPresentation(
+            $"{QwenRegions.GetShortDisplayName(connection.Region)} · 模型",
+            connection.Models.Count.ToString(),
+            connection.IsModelCacheStale ? "上次缓存" : "动态获取");
+        return new ApiConnectionCardPresentation
+        {
+            ProviderName = "千问 API",
+            Model = connection.Model,
+            ProtocolDisplayName = "Responses API",
+            EndpointHost = QwenRegions.Get(connection.Region)
+                .CreateBaseUrl(connection.WorkspaceId)
+                .Host,
+            Health = MapApiHealth(connection.Status),
+            StatusText = FormatApiStatus(connection.Status),
+            LastValidatedAt = connection.LastValidatedAt,
+            LastValidatedText = connection.LastValidatedAt is { } validated
+                ? $"{validated.ToLocalTime():yyyy-MM-dd HH:mm}"
+                : "尚未验证",
+            PrimaryMetric = primaryMetric,
+            Metrics = [primaryMetric]
+        };
+    }
+
     private static ConnectionDisplayHealth MapDeepSeekHealth(
         DeepSeekConnectionStatus status) => status switch
         {
@@ -283,6 +412,30 @@ public sealed class AccountCardViewModel : ObservableObject
             DeepSeekConnectionStatus.Unavailable => "暂不可用",
             _ => "尚未验证"
         };
+
+    private static ConnectionDisplayHealth MapApiHealth(ApiConnectionStatus status) =>
+        status switch
+        {
+            ApiConnectionStatus.Available => ConnectionDisplayHealth.Healthy,
+            ApiConnectionStatus.AuthenticationRequired =>
+                ConnectionDisplayHealth.AuthenticationRequired,
+            ApiConnectionStatus.PaymentRequired => ConnectionDisplayHealth.PaymentRequired,
+            ApiConnectionStatus.RateLimited => ConnectionDisplayHealth.RateLimited,
+            ApiConnectionStatus.Stale => ConnectionDisplayHealth.Stale,
+            ApiConnectionStatus.Unavailable => ConnectionDisplayHealth.Unavailable,
+            _ => ConnectionDisplayHealth.Unknown
+        };
+
+    private static string FormatApiStatus(ApiConnectionStatus status) => status switch
+    {
+        ApiConnectionStatus.Available => "API 可用",
+        ApiConnectionStatus.AuthenticationRequired => "Key 无效",
+        ApiConnectionStatus.PaymentRequired => "余额不足",
+        ApiConnectionStatus.RateLimited => "请求受限",
+        ApiConnectionStatus.Stale => "显示上次模型列表",
+        ApiConnectionStatus.Unavailable => "暂不可用",
+        _ => "尚未验证"
+    };
 
     private static string FormatMoney(decimal? amount, string symbol) =>
         amount is { } value ? $"{symbol}{value:N2}" : "—";

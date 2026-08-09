@@ -3,7 +3,8 @@ namespace GptController.Models;
 public enum ConnectionProvider
 {
     ChatGpt,
-    DeepSeek
+    DeepSeek,
+    Qwen
 }
 
 public enum MembershipPlan

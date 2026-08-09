@@ -5,6 +5,7 @@
         xmlns:converters="clr-namespace:GptController.Converters"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:GptController.Models"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:viewModels="clr-namespace:GptController.ViewModels"
         xmlns:views="clr-namespace:GptController.Views"
@@ -24,6 +25,156 @@
         <converters:ResponsiveCardHeightConverter x:Key="ResponsiveCardHeightConverter" />
         <converters:ResponsiveCardWidthConverter x:Key="ResponsiveCardWidthConverter" />
         <converters:ViewportContentWidthConverter x:Key="ViewportContentWidthConverter" />
+
+        <SolidColorBrush x:Key="PlanProBrush" Color="#5790FF" />
+        <SolidColorBrush x:Key="PlanBusinessBrush" Color="#54D1B9" />
+        <SolidColorBrush x:Key="PlanPlusBrush" Color="#C469F0" />
+        <SolidColorBrush x:Key="PlanDefaultBrush" Color="#F0AE38" />
+
+        <ControlTemplate x:Key="CompactCardButtonTemplate" TargetType="Button">
+            <Border x:Name="ButtonBorder"
+                    Padding="{TemplateBinding Padding}"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="7"
+                    SnapsToDevicePixels="True">
+                <ContentPresenter HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  RecognizesAccessKey="True" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.86" />
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter TargetName="ButtonBorder"
+                            Property="BorderBrush"
+                            Value="{StaticResource FocusRingBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.7" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.42" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="CompactCardActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource RoundedButtonStyle}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template" Value="{StaticResource CompactCardButtonTemplate}" />
+        </Style>
+
+        <Style x:Key="CompactModelButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource RoundedButtonStyle}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Template" Value="{StaticResource CompactCardButtonTemplate}" />
+        </Style>
+
+        <Style x:Key="AccountPlanIconStyle"
+               TargetType="iconPacks:PackIconMaterial">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Foreground" Value="{StaticResource PlanDefaultBrush}" />
+            <Setter Property="Kind" Value="CrownOutline" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Plus}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanPlusBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Pro5x}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanProBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Pro20x}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanProBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Team}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanBusinessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Business}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanBusinessBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AccountPlanTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource PlanDefaultBrush}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Plus}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanPlusBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Pro5x}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanProBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Pro20x}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanProBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Team}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanBusinessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Business}">
+                    <Setter Property="Foreground" Value="{StaticResource PlanBusinessBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AccountPlanStripeStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource PlanDefaultBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Plus}">
+                    <Setter Property="Background" Value="{StaticResource PlanPlusBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Pro5x}">
+                    <Setter Property="Background" Value="{StaticResource PlanProBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Pro20x}">
+                    <Setter Property="Background" Value="{StaticResource PlanProBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Team}">
+                    <Setter Property="Background" Value="{StaticResource PlanBusinessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Profile.MembershipPlan}"
+                             Value="{x:Static models:MembershipPlan.Business}">
+                    <Setter Property="Background" Value="{StaticResource PlanBusinessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
         <Style TargetType="Button"
                BasedOn="{StaticResource RoundedButtonStyle}">
@@ -310,7 +461,7 @@
                             </Style>
                         </Grid.Style>
 
-                        <Grid Margin="18,42,32,0">
+                        <Grid Margin="18,34,32,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
@@ -326,37 +477,29 @@
                                     <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='25,29'}"
                                                FontWeight="SemiBold"
                                                Text="连接管理" />
-                                    <TextBlock Margin="0,8,0,0"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                               Text="统一管理 ChatGPT 账号与模型 API 连接" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal"
                                             VerticalAlignment="Center">
-                                    <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='126,146'}"
-                                            MinHeight="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}"
-                                            Margin="0,0,12,0"
+                                    <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='116,140'}"
+                                            Margin="0,0,10,0"
                                             AutomationProperties.Name="刷新全部连接"
-                                            AutomationProperties.HelpText="刷新所有连接的状态、额度与余额信息"
+                                            AutomationProperties.HelpText="刷新所有账号额度与 API 余额"
                                             Command="{Binding RefreshAllCommand}">
                                         <StackPanel Orientation="Horizontal">
-                                            <iconPacks:PackIconMaterial Width="20"
-                                                                        Height="20"
-                                                                        Margin="0,0,8,0"
+                                            <iconPacks:PackIconMaterial Width="18"
+                                                                        Height="18"
+                                                                        Margin="0,0,7,0"
                                                                         Kind="Refresh" />
-                                            <TextBlock VerticalAlignment="Center"
-                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                                       Text="刷新全部" />
+                                            <TextBlock VerticalAlignment="Center" Text="刷新全部" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='138,158'}"
-                                             MinHeight="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='40,44'}"
-                                             AutomationProperties.Name="添加连接"
-                                             AutomationProperties.HelpText="选择添加 ChatGPT OAuth、导入当前 ChatGPT 或配置模型 API"
-                                             Click="AddConnection_Click"
-                                             Style="{StaticResource ResponsivePrimaryButtonStyle}">
+                                    <Button Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='126,152'}"
+                                            AutomationProperties.Name="添加连接"
+                                            AutomationProperties.HelpText="添加 ChatGPT 账号或配置模型 API"
+                                            Click="AddConnection_Click"
+                                            Style="{StaticResource ResponsivePrimaryButtonStyle}">
                                         <Button.ContextMenu>
                                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                                 <MenuItem Header="添加 ChatGPT OAuth"
@@ -366,1148 +509,622 @@
                                                 <Separator />
                                                 <MenuItem Header="{Binding DeepSeekMenuLabel}"
                                                           Command="{Binding ConfigureDeepSeekCommand}" />
+                                                <MenuItem Header="{Binding QwenMenuLabel}"
+                                                          Command="{Binding ConfigureQwenCommand}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                         <StackPanel Orientation="Horizontal">
-                                            <iconPacks:PackIconMaterial Width="21"
-                                                                        Height="21"
-                                                                        Margin="0,0,8,0"
+                                            <iconPacks:PackIconMaterial Width="20"
+                                                                        Height="20"
+                                                                        Margin="0,0,7,0"
                                                                         Kind="Plus" />
-                                            <TextBlock VerticalAlignment="Center"
-                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,14'}"
-                                                       Text="添加连接" />
+                                            <TextBlock VerticalAlignment="Center" Text="添加连接" />
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
                             </Grid>
 
                             <ScrollViewer Grid.Row="1"
-                                          Margin="0,44,0,0"
+                                          Margin="0,28,0,0"
                                           HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
-                                <Grid>
-                                    <ItemsControl Margin="-8,0,0,0"
-                                                  VerticalAlignment="Top"
-                                                  ItemsSource="{Binding Accounts}">
-                                        <ItemsControl.Style>
-                                            <Style TargetType="ItemsControl">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Accounts.Count}"
-                                                                 Value="0">
-                                                        <Setter Property="Visibility"
-                                                                Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ItemsControl.Style>
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel ItemWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource ResponsiveCardWidthConverter}}"
-                                                           ItemHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource ResponsiveCardHeightConverter}}"
-                                                           Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemContainerStyle>
-                                            <Style TargetType="ContentPresenter">
-                                                <Setter Property="HorizontalAlignment"
-                                                        Value="Stretch" />
-                                                <Setter Property="VerticalAlignment"
-                                                        Value="Stretch" />
-                                            </Style>
-                                        </ItemsControl.ItemContainerStyle>
-                                        <ItemsControl.ItemTemplateSelector>
-                                            <views:ConnectionCardTemplateSelector>
-                                                <views:ConnectionCardTemplateSelector.OAuthTemplate>
-                                                    <DataTemplate>
-                                                <GroupBox Margin="8"
-                                                          Focusable="False"
-                                                          IsTabStop="False"
-                                                          AutomationProperties.Name="{Binding Nickname}"
-                                                          AutomationProperties.HelpText="{Binding ProviderDisplayName, StringFormat=提供商：{0}}">
-                                                    <GroupBox.Style>
-                                                        <Style TargetType="GroupBox">
-                                                            <Setter Property="AutomationProperties.ItemStatus"
-                                                                    Value="非当前连接" />
-                                                            <Setter Property="Template">
-                                                                <Setter.Value>
-                                                                    <ControlTemplate TargetType="GroupBox">
-                                                                        <ContentPresenter />
-                                                                    </ControlTemplate>
-                                                                </Setter.Value>
-                                                            </Setter>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                             Value="True">
-                                                                    <Setter Property="AutomationProperties.ItemStatus"
-                                                                            Value="当前活动连接" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </GroupBox.Style>
-                                                    <Grid>
-                                                        <Border Background="{StaticResource SurfaceBrush}"
-                                                                CornerRadius="20"
-                                                                IsHitTestVisible="False">
+                                <Grid Margin="0,0,10,26">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <Grid Margin="2,0,2,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="34"
+                                                        Height="34"
+                                                        Margin="0,0,10,0"
+                                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                                        BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="11">
+                                                    <iconPacks:PackIconMaterial Width="19"
+                                                                                Height="19"
+                                                                                HorizontalAlignment="Center"
+                                                                                VerticalAlignment="Center"
+                                                                                Foreground="{StaticResource AccentBrush}"
+                                                                                Kind="AccountOutline" />
+                                                </Border>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock FontSize="15"
+                                                               FontWeight="SemiBold"
+                                                               Text="ChatGPT 账号" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <Border Grid.Column="1"
+                                                    Padding="9,4"
+                                                    VerticalAlignment="Center"
+                                                    Background="{StaticResource NeutralBadgeBrush}"
+                                                    CornerRadius="9">
+                                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                                           FontSize="10.5">
+                                                    <Run Text="{Binding ChatGptAccounts.Count, Mode=OneWay}" />
+                                                    <Run Text=" 个账号" />
+                                                </TextBlock>
+                                            </Border>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding ChatGptAccounts}"
+                                                      HorizontalContentAlignment="Stretch">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Height="120"
+                                                            Margin="2,0,2,10"
+                                                            Padding="12,9"
+                                                            Background="{StaticResource SurfaceBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="7"
+                                                            Effect="{StaticResource CardShadow}"
+                                                            AutomationProperties.Name="{Binding Email}"
+                                                            AutomationProperties.HelpText="{Binding ProviderDisplayName, StringFormat=账号类型：{0}}">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
-                                                                <Setter Property="Effect"
-                                                                        Value="{StaticResource CardShadow}" />
+                                                                <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsActive}"
-                                                                                 Value="True">
-                                                                        <Setter Property="Effect"
-                                                                                Value="{StaticResource ActiveCardShadow}" />
+                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+                                                                        <Setter Property="Effect" Value="{StaticResource ActiveCardShadow}" />
+                                                                        <Setter Property="AutomationProperties.ItemStatus" Value="当前账号" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </Border.Style>
-                                                    </Border>
-
-                                                    <Border Padding="22,16,22,12"
-                                                            Background="{StaticResource SurfaceBrush}"
-                                                            CornerRadius="20">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="BorderBrush"
-                                                                    Value="{StaticResource BorderBrush}" />
-                                                            <Setter Property="BorderThickness"
-                                                                    Value="1" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                             Value="True">
-                                                                    <Setter Property="BorderBrush"
-                                                                            Value="{StaticResource AccentBrush}" />
-                                                                    <Setter Property="BorderThickness"
-                                                                            Value="2" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-
-                                                    <Grid>
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="*" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                        </Grid.RowDefinitions>
-
-                                                        <Grid Grid.Row="0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <Border Grid.Column="0"
-                                                                    Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='42,46'}"
-                                                                    Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='42,46'}"
-                                                                    Background="{StaticResource NeutralStrongBrush}"
-                                                                    CornerRadius="23">
-                                                                <iconPacks:PackIconMaterial Width="24"
-                                                                                            Height="24"
-                                                                                            HorizontalAlignment="Center"
-                                                                                            VerticalAlignment="Center"
-                                                                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                                                                            Kind="AccountOutline" />
-                                                            </Border>
-                                                            <TextBlock Grid.Column="1"
-                                                                       Margin="14,0,0,0"
-                                                                       VerticalAlignment="Center"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='18,21'}"
-                                                                       FontWeight="SemiBold"
-                                                                       Text="{Binding Nickname}"
-                                                                       TextTrimming="CharacterEllipsis" />
-                                                            <Border Grid.Column="2"
-                                                                    Margin="10,0,0,0"
-                                                                    Padding="8,3"
-                                                                    VerticalAlignment="Center"
-                                                                    Background="{StaticResource NeutralBadgeBrush}"
-                                                                    CornerRadius="9">
-                                                                <TextBlock Foreground="{StaticResource TextMutedBrush}"
-                                                                           FontSize="10.5"
-                                                                           Text="{Binding ProviderDisplayName}" />
-                                                            </Border>
-                                                        </Grid>
-
-                                                        <Grid Grid.Row="1" Margin="0,12,0,0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="28" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <Grid Width="22"
-                                                                  Height="22"
-                                                                  HorizontalAlignment="Left">
-                                                                <iconPacks:PackIconMaterial Width="19"
-                                                                                            Height="19"
-                                                                                            Foreground="{StaticResource AccentBrush}"
-                                                                                            Kind="Check">
-                                                                    <iconPacks:PackIconMaterial.Style>
-                                                                        <Style TargetType="iconPacks:PackIconMaterial">
-                                                                            <Setter Property="Visibility"
-                                                                                    Value="Collapsed" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Visibility"
-                                                                                            Value="Visible" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </iconPacks:PackIconMaterial.Style>
-                                                                </iconPacks:PackIconMaterial>
-                                                                <iconPacks:PackIconMaterial Width="19"
-                                                                                            Height="19"
-                                                                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                            Kind="EmailOutline">
-                                                                    <iconPacks:PackIconMaterial.Style>
-                                                                        <Style TargetType="iconPacks:PackIconMaterial">
-                                                                            <Setter Property="Visibility"
-                                                                                    Value="Visible" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Visibility"
-                                                                                            Value="Collapsed" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </iconPacks:PackIconMaterial.Style>
-                                                                </iconPacks:PackIconMaterial>
-                                                            </Grid>
-                                                            <TextBlock Grid.Column="1"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,16'}"
-                                                                       Text="{Binding Email}"
-                                                                       ToolTip="{Binding Email}" />
-                                                        </Grid>
-
-                                                        <Grid Grid.Row="2" Margin="0,9,0,0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="28" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <iconPacks:PackIconMaterial Width="19"
-                                                                                        Height="19"
-                                                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                        Kind="CrownOutline" />
-                                                            <TextBlock Grid.Column="1"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,16'}"
-                                                                       Text="{Binding PlanDisplayName}" />
-                                                        </Grid>
-
-                                                        <Grid Grid.Row="3" Margin="0,9,0,0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="28" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <Grid Width="21"
-                                                                  Height="21"
-                                                                  HorizontalAlignment="Left">
-                                                                <iconPacks:PackIconMaterial Width="19"
-                                                                                            Height="19"
-                                                                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                            Kind="AccountOutline">
-                                                                    <iconPacks:PackIconMaterial.Style>
-                                                                        <Style TargetType="iconPacks:PackIconMaterial">
-                                                                            <Setter Property="Visibility"
-                                                                                    Value="Visible" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsOrganization}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Visibility"
-                                                                                            Value="Collapsed" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </iconPacks:PackIconMaterial.Style>
-                                                                </iconPacks:PackIconMaterial>
-                                                                <iconPacks:PackIconMaterial Width="19"
-                                                                                            Height="19"
-                                                                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                            Kind="OfficeBuildingOutline">
-                                                                    <iconPacks:PackIconMaterial.Style>
-                                                                        <Style TargetType="iconPacks:PackIconMaterial">
-                                                                            <Setter Property="Visibility"
-                                                                                    Value="Collapsed" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsOrganization}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Visibility"
-                                                                                            Value="Visible" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </iconPacks:PackIconMaterial.Style>
-                                                                </iconPacks:PackIconMaterial>
-                                                            </Grid>
-                                                            <TextBlock Grid.Column="1"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,16'}"
-                                                                       Text="{Binding OwnershipDisplayName}"
-                                                                       ToolTip="{Binding OwnershipDisplayName}" />
-                                                        </Grid>
-
-                                                        <Border Grid.Row="4"
-                                                                Height="1"
-                                                                Margin="0,11,0,0"
-                                                                Background="{StaticResource BorderSubtleBrush}" />
-
-                                                        <Grid Grid.Row="5" Margin="0,10,0,0">
+                                                        <Grid>
                                                             <Grid.RowDefinitions>
                                                                 <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="*" />
                                                                 <RowDefinition Height="Auto" />
                                                                 <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="*" />
                                                             </Grid.RowDefinitions>
 
+                                                            <Border x:Name="AccountAccentStripe"
+                                                                    Grid.RowSpan="5"
+                                                                    Width="2"
+                                                                    Margin="-12,-9,0,-9"
+                                                                    HorizontalAlignment="Left"
+                                                                    CornerRadius="7,0,0,7"
+                                                                    IsHitTestVisible="False"
+                                                                    Style="{StaticResource AccountPlanStripeStyle}" />
+
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <StackPanel Grid.Column="0"
+                                                                            VerticalAlignment="Center"
+                                                                            Orientation="Horizontal">
+                                                                    <iconPacks:PackIconMaterial Margin="0,0,7,0"
+                                                                                                Style="{StaticResource AccountPlanIconStyle}" />
+                                                                    <TextBlock Text="{Binding PlanDisplayName}"
+                                                                               Style="{StaticResource AccountPlanTextStyle}" />
+                                                                </StackPanel>
+
+                                                                <TextBlock Grid.Column="1"
+                                                                           Margin="16,0,10,0"
+                                                                           VerticalAlignment="Center"
+                                                                           FontSize="12.5"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           ToolTip="{Binding Email}">
+                                                                    <Run FontWeight="SemiBold" Text="{Binding Email, Mode=OneWay}" />
+                                                                    <Run Text="  " />
+                                                                    <Run Foreground="{StaticResource TextMutedBrush}"
+                                                                         FontSize="11.5"
+                                                                         Text="{Binding CompanyDisplayName, Mode=OneWay}" />
+                                                                </TextBlock>
+
+                                                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                                    <Button Margin="0,0,5,0"
+                                                                            CommandParameter="{Binding}"
+                                                                            AutomationProperties.Name="{Binding Email, StringFormat='切换到账号 {0}'}">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="Button"
+                                                                                   BasedOn="{StaticResource CompactCardActionButtonStyle}">
+                                                                                <Setter Property="Command"
+                                                                                        Value="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                                <Setter Property="ToolTip" Value="切换账号" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                        <Setter Property="Command" Value="{x:Null}" />
+                                                                                        <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+                                                                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                                                        <Setter Property="Foreground" Value="White" />
+                                                                                        <Setter Property="Cursor" Value="Arrow" />
+                                                                                        <Setter Property="ToolTip" Value="当前账号" />
+                                                                                        <Setter Property="AutomationProperties.ItemStatus" Value="当前账号" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                        <iconPacks:PackIconMaterial Width="15" Height="15">
+                                                                            <iconPacks:PackIconMaterial.Style>
+                                                                                <Style TargetType="iconPacks:PackIconMaterial">
+                                                                                    <Setter Property="Kind" Value="SwapHorizontal" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                            <Setter Property="Kind" Value="Check" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </iconPacks:PackIconMaterial.Style>
+                                                                        </iconPacks:PackIconMaterial>
+                                                                    </Button>
+                                                                    <Button Margin="0,0,5,0"
+                                                                            Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            AutomationProperties.Name="{Binding Email, StringFormat='刷新账号 {0}'}"
+                                                                            Style="{StaticResource CompactCardActionButtonStyle}"
+                                                                            ToolTip="刷新额度">
+                                                                        <iconPacks:PackIconMaterial Width="15" Height="15" Kind="Refresh" />
+                                                                    </Button>
+                                                                    <Button Foreground="{StaticResource DangerBrush}"
+                                                                            Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            IsEnabled="{Binding CanDelete}"
+                                                                            AutomationProperties.Name="{Binding Email, StringFormat='删除账号 {0}'}"
+                                                                            Style="{StaticResource CompactCardActionButtonStyle}"
+                                                                            ToolTip="删除账号">
+                                                                        <iconPacks:PackIconMaterial Width="15" Height="15" Kind="DeleteOutline" />
+                                                                    </Button>
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <Grid Grid.Row="2" Margin="0,9,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Margin="0,0,14,0"
+                                                                        Padding="2,0"
+                                                                        Background="Transparent"
+                                                                        CornerRadius="0">
+                                                                    <Grid>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
+                                                                        <Grid>
+                                                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                       FontSize="9"
+                                                                                       Text="5 小时" />
+                                                                            <TextBlock HorizontalAlignment="Right"
+                                                                                       FontSize="12"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Text="{Binding FiveHourRemainingText}" />
+                                                                        </Grid>
+                                                                        <ProgressBar Grid.Row="1"
+                                                                                     Height="3"
+                                                                                     Margin="0,3,0,0"
+                                                                                     Foreground="{StaticResource AccentBrush}"
+                                                                                     Maximum="100"
+                                                                                     Value="{Binding FiveHourRemainingValue, Mode=OneWay}" />
+                                                                        <TextBlock Grid.Row="2"
+                                                                                   Margin="0,2,0,0"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   FontSize="8.5"
+                                                                                   Text="{Binding PrimaryMetricDetailText}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   ToolTip="{Binding PrimaryMetricDetailText}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                                <Border Grid.Column="1"
+                                                                        Margin="0"
+                                                                        Padding="2,0"
+                                                                        Background="Transparent"
+                                                                        CornerRadius="0">
+                                                                    <Grid>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
+                                                                        <Grid>
+                                                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                       FontSize="9"
+                                                                                       Text="每周" />
+                                                                            <TextBlock HorizontalAlignment="Right"
+                                                                                       FontSize="12"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Text="{Binding WeeklyRemainingText}" />
+                                                                        </Grid>
+                                                                        <ProgressBar Grid.Row="1"
+                                                                                     Height="3"
+                                                                                     Margin="0,3,0,0"
+                                                                                     Foreground="{StaticResource AccentBrush}"
+                                                                                     Maximum="100"
+                                                                                     Value="{Binding WeeklyRemainingValue, Mode=OneWay}" />
+                                                                        <TextBlock Grid.Row="2"
+                                                                                   Margin="0,2,0,0"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   FontSize="8.5"
+                                                                                   Text="{Binding SecondaryMetricDetailText}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   ToolTip="{Binding SecondaryMetricDetailText}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </Grid>
+
+                                                            <TextBlock Grid.Row="3"
+                                                                       Margin="0,3,0,0"
+                                                                       HorizontalAlignment="Right"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       FontSize="8.5"
+                                                                       Text="{Binding QuotaUpdatedValueText, StringFormat=更新 {0}}"
+                                                                       TextTrimming="CharacterEllipsis" />
+
+                                                            <views:SelectionTraceBorder Grid.RowSpan="5"
+                                                                                        Margin="-13,-10"
+                                                                                        IsHitTestVisible="False"
+                                                                                        IsSelected="{Binding IsActive}"
+                                                                                        Stroke="{Binding Background, ElementName=AccountAccentStripe}"
+                                                                                        StrokeThickness="2"
+                                                                                        CornerRadius="7" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <Border Margin="2,0,2,12"
+                                                Padding="20,34"
+                                                Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="18">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ChatGptAccounts.Count}" Value="0">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <iconPacks:PackIconMaterial Width="32"
+                                                                            Height="32"
+                                                                            HorizontalAlignment="Center"
+                                                                            Foreground="{StaticResource TextMutedBrush}"
+                                                                            Kind="AccountPlusOutline" />
+                                                <TextBlock Margin="0,12,0,0"
+                                                           HorizontalAlignment="Center"
+                                                           FontWeight="SemiBold"
+                                                           Text="还没有 ChatGPT 账号" />
+                                                <TextBlock Margin="0,5,0,0"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Text="通过 OAuth 添加，或导入当前登录态" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1"
+                                            Width="1"
+                                            Margin="15,0"
+                                            HorizontalAlignment="Center"
+                                            Background="{StaticResource BorderSubtleBrush}" />
+
+                                    <StackPanel Grid.Column="2">
+                                        <Grid Margin="2,0,2,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="34"
+                                                        Height="34"
+                                                        Margin="0,0,10,0"
+                                                        Background="{StaticResource DeepSeekTintBrush}"
+                                                        BorderBrush="{StaticResource DeepSeekAccentBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="11">
+                                                    <iconPacks:PackIconMaterial Width="19"
+                                                                                Height="19"
+                                                                                HorizontalAlignment="Center"
+                                                                                VerticalAlignment="Center"
+                                                                                Foreground="{StaticResource DeepSeekAccentBrush}"
+                                                                                Kind="CodeTags" />
+                                                </Border>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock FontSize="15"
+                                                               FontWeight="SemiBold"
+                                                               Text="模型 API" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <Border Grid.Column="1"
+                                                    Padding="9,4"
+                                                    VerticalAlignment="Center"
+                                                    Background="{StaticResource NeutralBadgeBrush}"
+                                                    CornerRadius="9">
+                                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                                           FontSize="10.5">
+                                                    <Run Text="{Binding ApiConnections.Count, Mode=OneWay}" />
+                                                    <Run Text=" 个 API" />
+                                                </TextBlock>
+                                            </Border>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding ApiConnections}"
+                                                      HorizontalContentAlignment="Stretch">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Height="120"
+                                                            Margin="2,0,2,10"
+                                                            Padding="12,9"
+                                                            Background="{StaticResource SurfaceBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="7"
+                                                            Effect="{StaticResource CardShadow}"
+                                                            AutomationProperties.Name="{Binding ProviderDisplayName}">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+                                                                        <Setter Property="Effect" Value="{StaticResource ActiveCardShadow}" />
+                                                                        <Setter Property="AutomationProperties.ItemStatus" Value="当前 API 连接" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="*" />
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="*" />
+                                                            </Grid.RowDefinitions>
+
+                                                            <Border x:Name="ApiAccentStripe"
+                                                                    Grid.RowSpan="4"
+                                                                    Width="2"
+                                                                    Margin="-12,-9,0,-9"
+                                                                    HorizontalAlignment="Left"
+                                                                    Background="{StaticResource DeepSeekAccentBrush}"
+                                                                    CornerRadius="7,0,0,7"
+                                                                    IsHitTestVisible="False">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                            </Border>
+
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <StackPanel Grid.Column="0"
+                                                                            VerticalAlignment="Center"
+                                                                            Orientation="Horizontal">
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                                               FontSize="12.5"
+                                                                               FontWeight="SemiBold"
+                                                                               Text="{Binding ProviderDisplayName}" />
+                                                                </StackPanel>
+
+                                                                <Button Grid.Column="1"
+                                                                        Margin="16,0,10,0"
+                                                                        Padding="9,4"
+                                                                        HorizontalAlignment="Left"
+                                                                        VerticalAlignment="Center"
+                                                                        Command="{Binding DataContext.SelectApiModelCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        AutomationProperties.Name="{Binding ProviderDisplayName, StringFormat='选择 {0} 模型'}"
+                                                                        Style="{StaticResource CompactModelButtonStyle}"
+                                                                        ToolTip="选择默认模型">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock MaxWidth="190"
+                                                                                   VerticalAlignment="Center"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Text="{Binding ApiModelDisplayName}"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                        <iconPacks:PackIconMaterial Width="14" Height="14"
+                                                                                                    Margin="6,0,0,0"
+                                                                                                    VerticalAlignment="Center"
+                                                                                                    Kind="ChevronDown" />
+                                                                    </StackPanel>
+                                                                </Button>
+
+                                                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                                    <Button Margin="0,0,5,0"
+                                                                            CommandParameter="{Binding}"
+                                                                            AutomationProperties.Name="{Binding ProviderDisplayName, StringFormat='切换到 API 连接 {0}'}">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="Button"
+                                                                                   BasedOn="{StaticResource CompactCardActionButtonStyle}">
+                                                                                <Setter Property="Command"
+                                                                                        Value="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                                <Setter Property="ToolTip" Value="设为当前连接" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                        <Setter Property="Command" Value="{x:Null}" />
+                                                                                        <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+                                                                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                                                        <Setter Property="Foreground" Value="White" />
+                                                                                        <Setter Property="Cursor" Value="Arrow" />
+                                                                                        <Setter Property="ToolTip" Value="当前连接" />
+                                                                                        <Setter Property="AutomationProperties.ItemStatus" Value="当前连接" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                        <iconPacks:PackIconMaterial Width="15" Height="15">
+                                                                            <iconPacks:PackIconMaterial.Style>
+                                                                                <Style TargetType="iconPacks:PackIconMaterial">
+                                                                                    <Setter Property="Kind" Value="SwapHorizontal" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                            <Setter Property="Kind" Value="Check" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </iconPacks:PackIconMaterial.Style>
+                                                                        </iconPacks:PackIconMaterial>
+                                                                    </Button>
+                                                                    <Button Margin="0,0,5,0"
+                                                                            Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            AutomationProperties.Name="{Binding ProviderDisplayName, StringFormat='刷新 API 连接 {0}'}"
+                                                                            Style="{StaticResource CompactCardActionButtonStyle}"
+                                                                            ToolTip="{Binding RefreshToolTip}">
+                                                                        <iconPacks:PackIconMaterial Width="15" Height="15" Kind="Refresh" />
+                                                                    </Button>
+                                                                    <Button Foreground="{StaticResource DangerBrush}"
+                                                                            Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            IsEnabled="{Binding CanDelete}"
+                                                                            AutomationProperties.Name="{Binding ProviderDisplayName, StringFormat='删除 API 连接 {0}'}"
+                                                                            Style="{StaticResource CompactCardActionButtonStyle}"
+                                                                            ToolTip="删除连接">
+                                                                        <iconPacks:PackIconMaterial Width="15" Height="15" Kind="DeleteOutline" />
+                                                                    </Button>
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <Grid Grid.Row="2" Margin="2,13,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
                                                                 </Grid.ColumnDefinitions>
                                                                 <TextBlock VerticalAlignment="Center"
-                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='12,15'}"
-                                                                           FontWeight="SemiBold"
-                                                                           Text="{Binding MetricsTitle}" />
-                                                                <Border Grid.Column="1"
-                                                                        Padding="9,4"
-                                                                        Background="{StaticResource NeutralBadgeBrush}"
-                                                                        CornerRadius="10">
-                                                                    <TextBlock Foreground="{StaticResource TextMutedBrush}"
-                                                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
-                                                                               Text="{Binding QuotaStatusText}" />
-                                                                </Border>
-                                                            </Grid>
-
-                                                            <Grid Grid.Row="1" Margin="0,7,0,0">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="8" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                </Grid.ColumnDefinitions>
-
-                                                                <Border Padding="12,10"
-                                                                        Background="{StaticResource SurfaceRaisedBrush}"
-                                                                        BorderBrush="{StaticResource BorderSubtleBrush}"
-                                                                        BorderThickness="1"
-                                                                        CornerRadius="14">
-                                                                    <Grid>
-                                                                        <Grid.RowDefinitions>
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                        </Grid.RowDefinitions>
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <iconPacks:PackIconMaterial Width="15"
-                                                                                                        Height="15"
-                                                                                                        VerticalAlignment="Center"
-                                                                                                        Foreground="{StaticResource AccentBrush}"
-                                                                                                        Kind="TimerSand" />
-                                                                            <TextBlock Margin="6,0,0,0"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                                       Text="{Binding PrimaryMetricLabel}" />
-                                                                        </StackPanel>
-                                                                        <TextBlock Grid.Row="1"
-                                                                                   Margin="0,4,0,0"
-                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='23,27'}"
-                                                                                   FontWeight="SemiBold"
-                                                                                   Text="{Binding FiveHourRemainingText}" />
-                                                                        <ProgressBar Grid.Row="2"
-                                                                                      Height="7"
-                                                                                      Margin="0,6,0,0"
-                                                                                      AutomationProperties.Name="5 小时剩余额度"
-                                                                                      AutomationProperties.HelpText="{Binding FiveHourRemainingText, StringFormat=当前剩余 {0}}"
-                                                                                      Foreground="{StaticResource AccentBrush}"
-                                                                                      Maximum="100"
-                                                                                      Value="{Binding FiveHourRemainingValue, Mode=OneWay}" />
-                                                                        <TextBlock Grid.Row="3"
-                                                                                   Margin="0,6,0,0"
-                                                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9,10.5'}"
-                                                                                   TextTrimming="CharacterEllipsis"
-                                                                                   ToolTip="{Binding PrimaryMetricDetailText}"
-                                                                                   Text="{Binding PrimaryMetricDetailText}" />
-                                                                    </Grid>
-                                                                </Border>
-
-                                                                <Border Grid.Column="2"
-                                                                        Padding="12,10"
-                                                                        Background="{StaticResource SurfaceRaisedBrush}"
-                                                                        BorderBrush="{StaticResource BorderSubtleBrush}"
-                                                                        BorderThickness="1"
-                                                                        CornerRadius="14">
-                                                                    <Grid>
-                                                                        <Grid.RowDefinitions>
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                        </Grid.RowDefinitions>
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <iconPacks:PackIconMaterial Width="15"
-                                                                                                        Height="15"
-                                                                                                        VerticalAlignment="Center"
-                                                                                                        Foreground="{StaticResource NeutralIconBrush}"
-                                                                                                        Kind="CalendarWeek" />
-                                                                            <TextBlock Margin="6,0,0,0"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                                       Text="{Binding SecondaryMetricLabel}" />
-                                                                        </StackPanel>
-                                                                        <TextBlock Grid.Row="1"
-                                                                                   Margin="0,4,0,0"
-                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='23,27'}"
-                                                                                   FontWeight="SemiBold"
-                                                                                   Text="{Binding WeeklyRemainingText}" />
-                                                                        <ProgressBar Grid.Row="2"
-                                                                                      Height="7"
-                                                                                      Margin="0,6,0,0"
-                                                                                      AutomationProperties.Name="每周剩余额度"
-                                                                                      AutomationProperties.HelpText="{Binding WeeklyRemainingText, StringFormat=当前剩余 {0}}"
-                                                                                      Foreground="{StaticResource NeutralIconBrush}"
-                                                                                      Maximum="100"
-                                                                                      Value="{Binding WeeklyRemainingValue, Mode=OneWay}" />
-                                                                        <TextBlock Grid.Row="3"
-                                                                                   Margin="0,6,0,0"
-                                                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                                                   FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9,10.5'}"
-                                                                                   TextTrimming="CharacterEllipsis"
-                                                                                   ToolTip="{Binding SecondaryMetricDetailText}"
-                                                                                   Text="{Binding SecondaryMetricDetailText}" />
-                                                                    </Grid>
-                                                                </Border>
-                                                            </Grid>
-
-                                                            <Grid Grid.Row="2" Margin="2,7,2,0">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <iconPacks:PackIconMaterial Width="14"
-                                                                                            Height="14"
-                                                                                            VerticalAlignment="Center"
-                                                                                            Foreground="{StaticResource TextMutedBrush}"
-                                                                                            Kind="ClockOutline" />
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           FontSize="10.5"
+                                                                           Text="{Binding ApiPresentation.PrimaryMetric.Label}" />
                                                                 <TextBlock Grid.Column="1"
-                                                                           Margin="6,0,0,0"
+                                                                           Margin="8,0,0,0"
                                                                            VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
-                                                                           Text="{Binding UpdatedLabel}" />
-                                                                <TextBlock Grid.Column="2"
-                                                                           VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='9.5,11'}"
-                                                                           Text="{Binding QuotaUpdatedValueText}" />
-                                                            </Grid>
-                                                        </Grid>
-
-                                                        <Border Grid.Row="10"
-                                                                Height="1"
-                                                                Margin="0,7,0,0"
-                                                                Background="{StaticResource BorderSubtleBrush}" />
-
-                                                        <UniformGrid Grid.Row="11"
-                                                                     Margin="-6,4,-6,-2"
-                                                                     Rows="1">
-                                                            <Grid>
-                                                                <Button Command="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                        CommandParameter="{Binding}"
-                                                                        AutomationProperties.Name="{Binding Nickname, StringFormat='切换到连接 {0}'}"
-                                                                        AutomationProperties.HelpText="切换活动连接；可能需要重启 ChatGPT"
-                                                                        ToolTip="切换到此连接">
-                                                                    <Button.Style>
-                                                                        <Style TargetType="Button"
-                                                                               BasedOn="{StaticResource ResponsiveCardActionButtonStyle}">
-                                                                            <Setter Property="Visibility"
-                                                                                    Value="Visible" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Visibility"
-                                                                                            Value="Collapsed" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Button.Style>
-                                                                    <Border Width="28"
-                                                                            Height="28"
-                                                                            Background="{StaticResource NeutralBadgeBrush}"
-                                                                            CornerRadius="14">
-                                                                        <iconPacks:PackIconMaterial Width="16"
-                                                                                                    Height="16"
-                                                                                                    HorizontalAlignment="Center"
-                                                                                                    VerticalAlignment="Center"
-                                                                                                    Kind="SwapHorizontal" />
-                                                                    </Border>
-                                                                </Button>
-                                                                <Button IsEnabled="False"
-                                                                        AutomationProperties.Name="{Binding Nickname, StringFormat='当前连接 {0}'}"
-                                                                        AutomationProperties.HelpText="此连接当前正在使用"
-                                                                        ToolTip="当前活动连接">
-                                                                    <Button.Style>
-                                                                        <Style TargetType="Button"
-                                                                               BasedOn="{StaticResource ResponsiveCardActionButtonStyle}">
-                                                                            <Setter Property="Visibility"
-                                                                                    Value="Collapsed" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Visibility"
-                                                                                            Value="Visible" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Button.Style>
-                                                                    <Border Width="28"
-                                                                            Height="28"
-                                                                            Background="{StaticResource CurrentBadgeBrush}"
-                                                                            CornerRadius="14">
-                                                                        <iconPacks:PackIconMaterial Width="16"
-                                                                                                    Height="16"
-                                                                                                    HorizontalAlignment="Center"
-                                                                                                    VerticalAlignment="Center"
-                                                                                                    Kind="Check" />
-                                                                    </Border>
-                                                                </Button>
-                                                            </Grid>
-
-                                                            <Button Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Style="{StaticResource ResponsiveCardActionButtonStyle}"
-                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='刷新连接 {0}'}"
-                                                                    AutomationProperties.HelpText="{Binding RefreshToolTip}"
-                                                                    ToolTip="{Binding RefreshToolTip}">
-                                                                <Border Width="28"
-                                                                        Height="28"
-                                                                        Background="{StaticResource NeutralBadgeBrush}"
-                                                                        CornerRadius="14">
-                                                                    <iconPacks:PackIconMaterial Width="16"
-                                                                                                Height="16"
-                                                                                                HorizontalAlignment="Center"
-                                                                                                VerticalAlignment="Center"
-                                                                                                Kind="Refresh" />
-                                                                </Border>
-                                                            </Button>
-
-                                                            <Button Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Style="{StaticResource ResponsiveCardActionButtonStyle}"
-                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='编辑连接 {0}'}"
-                                                                    AutomationProperties.HelpText="{Binding EditToolTip}"
-                                                                    ToolTip="{Binding EditToolTip}">
-                                                                <Border Width="28"
-                                                                        Height="28"
-                                                                        Background="{StaticResource NeutralBadgeBrush}"
-                                                                        CornerRadius="14">
-                                                                    <iconPacks:PackIconMaterial Width="16"
-                                                                                                Height="16"
-                                                                                                HorizontalAlignment="Center"
-                                                                                                VerticalAlignment="Center"
-                                                                                                Kind="PencilOutline" />
-                                                                </Border>
-                                                            </Button>
-
-                                                            <Button Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Foreground="{StaticResource DangerBrush}"
-                                                                    IsEnabled="{Binding CanDelete}"
-                                                                    Style="{StaticResource ResponsiveCardActionButtonStyle}"
-                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='删除连接 {0}'}"
-                                                                    AutomationProperties.HelpText="删除此连接在本机保存的加密档案；当前活动连接不可删除"
-                                                                    ToolTip="删除本地加密档案；当前活动连接不可删除">
-                                                                <Border Width="28"
-                                                                        Height="28"
-                                                                        Background="{StaticResource DangerTintBrush}"
-                                                                        CornerRadius="14">
-                                                                    <iconPacks:PackIconMaterial Width="16"
-                                                                                                Height="16"
-                                                                                                HorizontalAlignment="Center"
-                                                                                                VerticalAlignment="Center"
-                                                                                                Kind="DeleteOutline" />
-                                                                </Border>
-                                                            </Button>
-                                                        </UniformGrid>
-                                                    </Grid>
-                                                        </Border>
-                                                    </Grid>
-                                                </GroupBox>
-                                                    </DataTemplate>
-                                                </views:ConnectionCardTemplateSelector.OAuthTemplate>
-                                                <views:ConnectionCardTemplateSelector.ApiTemplate>
-                                                    <DataTemplate>
-                                                        <GroupBox Margin="8"
-                                                                  Focusable="False"
-                                                                  IsTabStop="False"
-                                                                  AutomationProperties.Name="{Binding Nickname}"
-                                                                  AutomationProperties.HelpText="{Binding ApiPresentation.ProviderName, StringFormat=API 提供商：{0}}">
-                                                            <GroupBox.Style>
-                                                                <Style TargetType="GroupBox">
-                                                                    <Setter Property="AutomationProperties.ItemStatus"
-                                                                            Value="非当前连接" />
-                                                                    <Setter Property="Template">
-                                                                        <Setter.Value>
-                                                                            <ControlTemplate TargetType="GroupBox">
-                                                                                <ContentPresenter />
-                                                                            </ControlTemplate>
-                                                                        </Setter.Value>
-                                                                    </Setter>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsActive}"
-                                                                                     Value="True">
-                                                                            <Setter Property="AutomationProperties.ItemStatus"
-                                                                                    Value="当前活动连接" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </GroupBox.Style>
-
-                                                            <Grid>
-                                                                <Border Background="{StaticResource SurfaceBrush}"
-                                                                        CornerRadius="20"
-                                                                        IsHitTestVisible="False">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="Effect"
-                                                                                    Value="{StaticResource CardShadow}" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="Effect"
-                                                                                            Value="{StaticResource ActiveCardShadow}" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                </Border>
-
-                                                                <Border Padding="16,16,16,12"
-                                                                        Background="{StaticResource SurfaceBrush}"
-                                                                        CornerRadius="20">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="BorderBrush"
-                                                                                    Value="{StaticResource BorderBrush}" />
-                                                                            <Setter Property="BorderThickness"
-                                                                                    Value="1" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsActive}"
-                                                                                             Value="True">
-                                                                                    <Setter Property="BorderBrush"
-                                                                                            Value="{StaticResource AccentBrush}" />
-                                                                                    <Setter Property="BorderThickness"
-                                                                                            Value="2" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-
-                                                                    <Grid>
-                                                                        <Grid.RowDefinitions>
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="*" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                            <RowDefinition Height="Auto" />
-                                                                        </Grid.RowDefinitions>
-
-                                                                        <Grid Grid.Row="0">
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                            </Grid.ColumnDefinitions>
-
-                                                                            <Border Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='50,58'}"
-                                                                                    Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='42,50'}"
-                                                                                    Background="{StaticResource InfoTintBrush}"
-                                                                                    BorderBrush="{StaticResource AccentBrush}"
-                                                                                    BorderThickness="1"
-                                                                                    CornerRadius="11">
-                                                                                 <TextBlock HorizontalAlignment="Center"
-                                                                                           VerticalAlignment="Center"
-                                                                                           Foreground="{StaticResource AccentBrush}"
-                                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,15'}"
-                                                                                           FontWeight="Bold"
-                                                                                           Text="API" />
-                                                                            </Border>
-
-                                                                            <StackPanel Grid.Column="1"
-                                                                                        Margin="14,0,10,0"
-                                                                                        VerticalAlignment="Center">
-                                                                                <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='19,23'}"
-                                                                                           FontWeight="SemiBold"
-                                                                                           Text="{Binding Nickname}"
-                                                                                           ToolTip="{Binding Nickname}" />
-                                                                                <TextBlock Margin="0,3,0,0"
-                                                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='11,13'}"
-                                                                                           Text="{Binding ApiPresentation.ProviderName}"
-                                                                                           ToolTip="{Binding ApiPresentation.ProviderName}" />
-                                                                            </StackPanel>
-
-                                                                            <StackPanel Grid.Column="2"
-                                                                                        HorizontalAlignment="Right">
-                                                                                <Border Padding="9,5"
-                                                                                        CornerRadius="10">
-                                                                                    <Border.Style>
-                                                                                        <Style TargetType="Border">
-                                                                                            <Setter Property="Background"
-                                                                                                    Value="{StaticResource NeutralBadgeBrush}" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                             Value="{x:Static viewModels:ConnectionDisplayHealth.Healthy}">
-                                                                                                    <Setter Property="Background"
-                                                                                                            Value="{StaticResource SuccessTintBrush}" />
-                                                                                                </DataTrigger>
-                                                                                                <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                             Value="{x:Static viewModels:ConnectionDisplayHealth.AuthenticationRequired}">
-                                                                                                    <Setter Property="Background"
-                                                                                                            Value="{StaticResource DangerTintBrush}" />
-                                                                                                </DataTrigger>
-                                                                                                <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                             Value="{x:Static viewModels:ConnectionDisplayHealth.PaymentRequired}">
-                                                                                                    <Setter Property="Background"
-                                                                                                            Value="{StaticResource WarningTintBrush}" />
-                                                                                                </DataTrigger>
-                                                                                                <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                             Value="{x:Static viewModels:ConnectionDisplayHealth.RateLimited}">
-                                                                                                    <Setter Property="Background"
-                                                                                                            Value="{StaticResource WarningTintBrush}" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </Border.Style>
-                                                                                    <TextBlock FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                                               FontWeight="SemiBold"
-                                                                                               AutomationProperties.LiveSetting="Polite"
-                                                                                               Text="{Binding ApiPresentation.StatusText}">
-                                                                                        <TextBlock.Style>
-                                                                                            <Style TargetType="TextBlock">
-                                                                                                <Setter Property="Foreground"
-                                                                                                        Value="{StaticResource TextSecondaryBrush}" />
-                                                                                                <Style.Triggers>
-                                                                                                    <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                                 Value="{x:Static viewModels:ConnectionDisplayHealth.Healthy}">
-                                                                                                        <Setter Property="Foreground"
-                                                                                                                Value="{StaticResource SuccessAccentBrush}" />
-                                                                                                    </DataTrigger>
-                                                                                                    <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                                 Value="{x:Static viewModels:ConnectionDisplayHealth.AuthenticationRequired}">
-                                                                                                        <Setter Property="Foreground"
-                                                                                                                Value="{StaticResource DangerBrush}" />
-                                                                                                    </DataTrigger>
-                                                                                                    <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                                 Value="{x:Static viewModels:ConnectionDisplayHealth.PaymentRequired}">
-                                                                                                        <Setter Property="Foreground"
-                                                                                                                Value="{StaticResource WarningAccentBrush}" />
-                                                                                                    </DataTrigger>
-                                                                                                    <DataTrigger Binding="{Binding ApiPresentation.Health}"
-                                                                                                                 Value="{x:Static viewModels:ConnectionDisplayHealth.RateLimited}">
-                                                                                                        <Setter Property="Foreground"
-                                                                                                                Value="{StaticResource WarningAccentBrush}" />
-                                                                                                    </DataTrigger>
-                                                                                                </Style.Triggers>
-                                                                                            </Style>
-                                                                                        </TextBlock.Style>
-                                                                                    </TextBlock>
-                                                                                </Border>
-
-                                                                                <Border Margin="0,6,0,0"
-                                                                                        Padding="8,3"
-                                                                                        HorizontalAlignment="Right"
-                                                                                        Background="{StaticResource CurrentBadgeBrush}"
-                                                                                        CornerRadius="9">
-                                                                                    <Border.Style>
-                                                                                        <Style TargetType="Border">
-                                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </Border.Style>
-                                                                                    <TextBlock FontSize="9.5"
-                                                                                               FontWeight="SemiBold"
-                                                                                               Text="当前" />
-                                                                                </Border>
-                                                                            </StackPanel>
-                                                                        </Grid>
-
-                                                                        <Border Grid.Row="1"
-                                                                                Margin="0,13,0,0"
-                                                                                BorderBrush="{StaticResource BorderSubtleBrush}"
-                                                                                BorderThickness="0,1">
-                                                                            <Grid>
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="42" />
-                                                                                    <ColumnDefinition Width="66" />
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                </Grid.ColumnDefinitions>
-                                                                                <Grid.RowDefinitions>
-                                                                                    <RowDefinition Height="Auto" />
-                                                                                    <RowDefinition Height="1" />
-                                                                                    <RowDefinition Height="Auto" />
-                                                                                    <RowDefinition Height="1" />
-                                                                                    <RowDefinition Height="Auto" />
-                                                                                </Grid.RowDefinitions>
-
-                                                                                <Border Grid.Row="0"
-                                                                                        Grid.ColumnSpan="3"
-                                                                                        Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='36,54'}"
-                                                                                        Background="Transparent"
-                                                                                        IsHitTestVisible="False" />
-                                                                                <Border Grid.Row="2"
-                                                                                        Grid.ColumnSpan="3"
-                                                                                        Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='36,54'}"
-                                                                                        Background="Transparent"
-                                                                                        IsHitTestVisible="False" />
-                                                                                <Border Grid.Row="4"
-                                                                                        Grid.ColumnSpan="3"
-                                                                                        Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='36,54'}"
-                                                                                        Background="Transparent"
-                                                                                        IsHitTestVisible="False" />
-
-                                                                                <iconPacks:PackIconMaterial Grid.Row="0"
-                                                                                                            Kind="CubeOutline"
-                                                                                                            Style="{StaticResource ApiLedgerIconStyle}" />
-                                                                                <TextBlock Grid.Row="0"
-                                                                                           Grid.Column="1"
-                                                                                           Style="{StaticResource ApiLedgerLabelStyle}"
-                                                                                           Text="模型" />
-                                                                                <TextBlock Grid.Row="0"
-                                                                                           Grid.Column="2"
-                                                                                           Style="{StaticResource ApiLedgerValueStyle}"
-                                                                                           Text="{Binding ApiPresentation.Model}"
-                                                                                           ToolTip="{Binding ApiPresentation.Model}" />
-
-                                                                                <Border Grid.Row="1"
-                                                                                        Grid.ColumnSpan="3"
-                                                                                        Background="{StaticResource BorderSubtleBrush}" />
-
-                                                                                <iconPacks:PackIconMaterial Grid.Row="2"
-                                                                                                            Kind="CodeTags"
-                                                                                                            Style="{StaticResource ApiLedgerIconStyle}" />
-                                                                                <TextBlock Grid.Row="2"
-                                                                                           Grid.Column="1"
-                                                                                           Style="{StaticResource ApiLedgerLabelStyle}"
-                                                                                           Text="协议" />
-                                                                                <TextBlock Grid.Row="2"
-                                                                                           Grid.Column="2"
-                                                                                           Style="{StaticResource ApiLedgerValueStyle}"
-                                                                                           Text="{Binding ApiPresentation.ProtocolDisplayName}"
-                                                                                           ToolTip="{Binding ApiPresentation.ProtocolDisplayName}" />
-
-                                                                                <Border Grid.Row="3"
-                                                                                        Grid.ColumnSpan="3"
-                                                                                        Background="{StaticResource BorderSubtleBrush}" />
-
-                                                                                <iconPacks:PackIconMaterial Grid.Row="4"
-                                                                                                            Kind="Web"
-                                                                                                            Style="{StaticResource ApiLedgerIconStyle}" />
-                                                                                <TextBlock Grid.Row="4"
-                                                                                           Grid.Column="1"
-                                                                                           Style="{StaticResource ApiLedgerLabelStyle}"
-                                                                                           Text="端点" />
-                                                                                <TextBlock Grid.Row="4"
-                                                                                           Grid.Column="2"
-                                                                                           Style="{StaticResource ApiLedgerValueStyle}"
-                                                                                           Text="{Binding ApiPresentation.EndpointHost}"
-                                                                                           ToolTip="{Binding ApiPresentation.EndpointHost}" />
-                                                                            </Grid>
-                                                                        </Border>
-
-                                                                        <Grid Grid.Row="2"
-                                                                              Margin="0,14,0,0"
-                                                                              AutomationProperties.Name="{Binding ApiPresentation.PrimaryMetric.DetailText}"
-                                                                              AutomationProperties.HelpText="{Binding ApiPresentation.PrimaryMetric.ValueText, StringFormat=当前值 {0}}">
-                                                                            <Grid.RowDefinitions>
-                                                                                <RowDefinition Height="Auto" />
-                                                                                <RowDefinition Height="Auto" />
-                                                                            </Grid.RowDefinitions>
-
-                                                                            <Grid>
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                    <ColumnDefinition Width="Auto" />
-                                                                                </Grid.ColumnDefinitions>
-                                                                                <StackPanel Orientation="Horizontal">
-                                                                                    <Border Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='32,38'}"
-                                                                                            Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='32,38'}"
-                                                                                            Background="{StaticResource InfoTintBrush}"
-                                                                                            CornerRadius="16">
-                                                                                        <iconPacks:PackIconMaterial Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='18,21'}"
-                                                                                                                    Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='18,21'}"
-                                                                                                                    HorizontalAlignment="Center"
-                                                                                                                    VerticalAlignment="Center"
-                                                                                                                    Foreground="{StaticResource AccentBrush}"
-                                                                                                                    Kind="WalletOutline" />
-                                                                                    </Border>
-                                                                                    <TextBlock Margin="11,0,0,0"
-                                                                                               VerticalAlignment="Center"
-                                                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                               FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='13,15.5'}"
-                                                                                               FontWeight="SemiBold"
-                                                                                               Text="{Binding ApiPresentation.PrimaryMetric.DetailText}" />
-                                                                                </StackPanel>
-                                                                                <Border Grid.Column="1"
-                                                                                        Padding="10,5"
-                                                                                        VerticalAlignment="Center"
-                                                                                        Background="{StaticResource SurfaceRaisedBrush}"
-                                                                                        BorderBrush="{StaticResource BorderSubtleBrush}"
-                                                                                        BorderThickness="1"
-                                                                                        CornerRadius="10">
-                                                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
-                                                                                               FontSize="10"
-                                                                                               FontWeight="SemiBold"
-                                                                                               Text="{Binding ApiPresentation.PrimaryMetric.Label}" />
-                                                                                </Border>
-                                                                            </Grid>
-
-                                                                            <TextBlock Grid.Row="1"
-                                                                                       Margin="0,10,0,0"
-                                                                                       FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='38,46'}"
-                                                                                       FontWeight="SemiBold"
-                                                                                       Text="{Binding ApiPresentation.PrimaryMetric.ValueText}" />
-                                                                        </Grid>
-
-                                                                        <Border Grid.Row="3"
-                                                                                Margin="0,10,0,0"
-                                                                                Padding="0,10,0,0"
-                                                                                VerticalAlignment="Center"
-                                                                                BorderBrush="{StaticResource BorderSubtleBrush}"
-                                                                                BorderThickness="0,1,0,0">
-                                                                            <Grid>
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="Auto" />
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                </Grid.ColumnDefinitions>
-                                                                                <iconPacks:PackIconMaterial Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='16,18'}"
-                                                                                                            Height="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='16,18'}"
-                                                                                                            Margin="0,0,8,0"
-                                                                                                            VerticalAlignment="Center"
-                                                                                                            Foreground="{StaticResource TextMutedBrush}"
-                                                                                                            Kind="ClockOutline" />
-                                                                                <TextBlock Grid.Column="1"
-                                                                                           VerticalAlignment="Center"
-                                                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                                                           FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='10.5,12'}"
-                                                                                           Text="{Binding ApiPresentation.LastValidatedText, StringFormat=验证 {0}}"
-                                                                                           ToolTip="{Binding ApiPresentation.LastValidatedText}" />
-                                                                            </Grid>
-                                                                        </Border>
-
-                                                                        <Border Grid.Row="4"
-                                                                                Height="1"
-                                                                                Margin="0,8,0,0"
-                                                                                Background="{StaticResource BorderSubtleBrush}" />
-
-                                                                        <Grid Grid.Row="5"
-                                                                              Margin="0,5,0,-1">
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="42" />
-                                                                                <ColumnDefinition Width="42" />
-                                                                                <ColumnDefinition Width="42" />
-                                                                                <ColumnDefinition Width="42" />
-                                                                            </Grid.ColumnDefinitions>
-
-                                                                            <Button Grid.Column="0"
-                                                                                    Command="{Binding DataContext.TestApiConnectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                    CommandParameter="{Binding}"
-                                                                                    Style="{StaticResource ApiCardTestButtonStyle}"
-                                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='测试 API 连接 {0}'}"
-                                                                                    AutomationProperties.HelpText="发送最小 Responses API 测试请求，会产生少量 Token 费用"
-                                                                                    ToolTip="测试 API 连接">
-                                                                                <StackPanel Orientation="Horizontal">
-                                                                                    <iconPacks:PackIconMaterial Width="16"
-                                                                                                                Height="16"
-                                                                                                                Margin="0,0,7,0"
-                                                                                                                Foreground="{StaticResource AccentBrush}"
-                                                                                                                Kind="PlayOutline" />
-                                                                                    <TextBlock VerticalAlignment="Center"
-                                                                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                                                                               FontSize="11"
-                                                                                               FontWeight="SemiBold"
-                                                                                               Text="测试 API" />
-                                                                                </StackPanel>
-                                                                            </Button>
-
-                                                                            <Grid Grid.Column="1">
-                                                                                <Button
-                                                                                        Command="{Binding DataContext.SwitchAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                        CommandParameter="{Binding}"
-                                                                                        AutomationProperties.Name="{Binding Nickname, StringFormat='切换到连接 {0}'}"
-                                                                                        AutomationProperties.HelpText="切换活动连接；可能需要重启 ChatGPT"
-                                                                                        ToolTip="切换到此连接">
-                                                                                    <Button.Style>
-                                                                                        <Style TargetType="Button"
-                                                                                               BasedOn="{StaticResource ApiCardIconButtonStyle}">
-                                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </Button.Style>
-                                                                                    <iconPacks:PackIconMaterial Width="17"
-                                                                                                                Height="17"
-                                                                                                                Kind="SwapHorizontal" />
-                                                                                </Button>
-                                                                                <Button
-                                                                                        IsEnabled="False"
-                                                                                        AutomationProperties.Name="{Binding Nickname, StringFormat='当前连接 {0}'}"
-                                                                                        AutomationProperties.HelpText="此连接当前正在使用"
-                                                                                        ToolTip="当前活动连接">
-                                                                                    <Button.Style>
-                                                                                        <Style TargetType="Button"
-                                                                                               BasedOn="{StaticResource ApiCardIconButtonStyle}">
-                                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </Button.Style>
-                                                                                    <iconPacks:PackIconMaterial Width="17"
-                                                                                                                Height="17"
-                                                                                                                Kind="Check" />
-                                                                                </Button>
-                                                                            </Grid>
-
-                                                                            <Button Grid.Column="2"
-                                                                                    Command="{Binding DataContext.RefreshAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                    CommandParameter="{Binding}"
-                                                                                    Style="{StaticResource ApiCardIconButtonStyle}"
-                                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='刷新 API 连接 {0}'}"
-                                                                                    AutomationProperties.HelpText="刷新 API 状态和余额"
-                                                                                    ToolTip="刷新 API 状态和余额">
-                                                                                <iconPacks:PackIconMaterial Width="17"
-                                                                                                            Height="17"
-                                                                                                            Kind="Refresh" />
-                                                                            </Button>
-
-                                                                            <Button Grid.Column="3"
-                                                                                    Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                    CommandParameter="{Binding}"
-                                                                                    Style="{StaticResource ApiCardIconButtonStyle}"
-                                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='编辑 API 连接 {0}'}"
-                                                                                    AutomationProperties.HelpText="编辑此 API 连接"
-                                                                                    ToolTip="编辑 API 连接">
-                                                                                <iconPacks:PackIconMaterial Width="17"
-                                                                                                            Height="17"
-                                                                                                            Kind="PencilOutline" />
-                                                                            </Button>
-
-                                                                            <Button Grid.Column="4"
-                                                                                    Command="{Binding DataContext.DeleteAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                    CommandParameter="{Binding}"
-                                                                                    Foreground="{StaticResource DangerBrush}"
-                                                                                    IsEnabled="{Binding CanDelete}"
-                                                                                    Style="{StaticResource ApiCardIconButtonStyle}"
-                                                                                    AutomationProperties.Name="{Binding Nickname, StringFormat='删除 API 连接 {0}'}"
-                                                                                    AutomationProperties.HelpText="删除此连接在本机保存的凭据和元数据；当前活动连接不可删除"
-                                                                                    ToolTip="删除 API 连接；当前活动连接不可删除">
-                                                                                <iconPacks:PackIconMaterial Width="17"
-                                                                                                            Height="17"
-                                                                                                            Kind="DeleteOutline" />
-                                                                            </Button>
-                                                                        </Grid>
-                                                                    </Grid>
-                                                                </Border>
-
-                                                            </Grid>
-                                                        </GroupBox>
-                                                    </DataTemplate>
-                                                </views:ConnectionCardTemplateSelector.ApiTemplate>
-                                            </views:ConnectionCardTemplateSelector>
-                                        </ItemsControl.ItemTemplateSelector>
-                                    </ItemsControl>
-
-                                    <Border MinHeight="360"
-                                            Margin="10"
-                                            Padding="50"
-                                            Background="{StaticResource SurfaceBrush}"
-                                            BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="18">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Accounts.Count}"
-                                                                 Value="0">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <StackPanel HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center">
-                                            <Border Width="64"
-                                                    Height="64"
-                                                    HorizontalAlignment="Center"
-                                                    Background="{StaticResource SurfaceRaisedBrush}"
-                                                    CornerRadius="32">
-                                                <iconPacks:PackIconMaterial Width="30"
-                                                                            Height="30"
-                                                                            HorizontalAlignment="Center"
+                                                                           FontSize="12.5"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding ApiPresentation.PrimaryMetric.ValueText}" />
+                                                                <Border Grid.Column="2"
+                                                                        Width="1"
+                                                                        Height="14"
+                                                                        Margin="18,0"
+                                                                        VerticalAlignment="Center"
+                                                                        Background="{StaticResource BorderSubtleBrush}" />
+                                                                <StackPanel Grid.Column="3"
                                                                             VerticalAlignment="Center"
-                                                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                                                            Kind="AccountPlusOutline" />
-                                            </Border>
-                                             <TextBlock Margin="0,20,0,0"
-                                                        HorizontalAlignment="Center"
-                                                        FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSizeConverter}, ConverterParameter='19,22'}"
-                                                        FontWeight="SemiBold"
-                                                        Text="还没有连接" />
-                                            <TextBlock Margin="0,9,0,24"
-                                                       HorizontalAlignment="Center"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Text="添加 ChatGPT OAuth 账号，或配置模型 API 连接。" />
-                                             <Button AutomationProperties.Name="添加第一个连接"
-                                                     AutomationProperties.HelpText="打开添加连接菜单"
-                                                     Click="AddConnection_Click"
-                                                     Style="{StaticResource ResponsivePrimaryButtonStyle}">
-                                                <Button.ContextMenu>
-                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                                        <MenuItem Header="添加 ChatGPT OAuth" Command="{Binding AddAccountCommand}" />
-                                                        <MenuItem Header="导入当前 ChatGPT" Command="{Binding ImportCurrentCommand}" />
-                                                        <Separator />
-                                                        <MenuItem Header="{Binding DeepSeekMenuLabel}" Command="{Binding ConfigureDeepSeekCommand}" />
-                                                    </ContextMenu>
-                                                </Button.ContextMenu>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <iconPacks:PackIconMaterial Width="20"
-                                                                                Height="20"
-                                                                                Margin="0,0,8,0"
-                                                                                Kind="Plus" />
-                                                    <TextBlock Text="添加第一个连接" />
-                                                </StackPanel>
-                                            </Button>
-                                        </StackPanel>
-                                    </Border>
+                                                                            Orientation="Horizontal">
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                                               FontSize="10.5"
+                                                                               Text="模型 ID" />
+                                                                    <TextBlock Margin="8,0,0,0"
+                                                                               VerticalAlignment="Center"
+                                                                               FontSize="10.5"
+                                                                               FontWeight="SemiBold"
+                                                                               Text="{Binding ApiPresentation.Model}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               ToolTip="{Binding ApiPresentation.Model}" />
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <views:SelectionTraceBorder Grid.RowSpan="4"
+                                                                                        Margin="-13,-10"
+                                                                                        IsHitTestVisible="False"
+                                                                                        IsSelected="{Binding IsActive}"
+                                                                                        Stroke="{Binding Background, ElementName=ApiAccentStripe}"
+                                                                                        StrokeThickness="2"
+                                                                                        CornerRadius="7" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <Border Margin="2,0,2,12"
+                                                Padding="20,34"
+                                                Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="18">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ApiConnections.Count}" Value="0">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <iconPacks:PackIconMaterial Width="32"
+                                                                            Height="32"
+                                                                            HorizontalAlignment="Center"
+                                                                            Foreground="{StaticResource TextMutedBrush}"
+                                                                            Kind="CodeTags" />
+                                                <TextBlock Margin="0,12,0,0"
+                                                           HorizontalAlignment="Center"
+                                                           FontWeight="SemiBold"
+                                                           Text="还没有模型 API" />
+                                                <TextBlock Margin="0,5,0,0"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Text="配置 DeepSeek 或千问 API 后可选择默认模型" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
                                 </Grid>
                             </ScrollViewer>
                         </Grid>

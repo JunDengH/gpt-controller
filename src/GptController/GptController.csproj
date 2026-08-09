@@ -13,7 +13,7 @@
     <Product>GPT Controller</Product>
     <AssemblyTitle>GPT Controller</AssemblyTitle>
     <Authors>GPT Controller contributors</Authors>
-    <Description>Local-first ChatGPT and DeepSeek connection controller for Codex on Windows.</Description>
+    <Description>Local-first ChatGPT, DeepSeek, and Qwen connection controller for Codex on Windows.</Description>
   </PropertyGroup>
 
   <ItemGroup>

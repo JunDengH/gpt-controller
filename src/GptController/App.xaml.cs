@@ -16,6 +16,7 @@ public partial class App : Application
     private TrayIconService? _trayIcon;
     private MainWindow? _mainWindow;
     private HttpClient? _deepSeekHttpClient;
+    private HttpClient? _qwenHttpClient;
 
     public bool IsExiting { get; private set; }
 
@@ -36,9 +37,12 @@ public partial class App : Application
         isUiPreview = isUiPreview ||
                       File.Exists(Path.Combine(AppContext.BaseDirectory, ".ui-preview"));
 #endif
+        var applicationMutexName = isUiPreview
+            ? $"{LegacyCompatibility.ApplicationMutexName}.UiPreview.{Environment.ProcessId}"
+            : LegacyCompatibility.ApplicationMutexName;
         _singleInstance = new Mutex(
             initiallyOwned: true,
-            LegacyCompatibility.ApplicationMutexName,
+            applicationMutexName,
             out var isFirstInstance);
         if (!isFirstInstance)
         {
@@ -117,6 +121,8 @@ public partial class App : Application
             var deepSeekStore = new DeepSeekConnectionStore(
                 paths,
                 deepSeekCredentialStore);
+            var qwenCredentialStore = new QwenCredentialStore(paths.Root);
+            var qwenStore = new QwenConnectionStore(paths, qwenCredentialStore);
             var deepSeekConfigService = new DeepSeekCodexConfigService(
                 new DeepSeekCodexConfigOptions(
                     paths.CodexConfigFile,
@@ -128,6 +134,11 @@ public partial class App : Application
                 Timeout = TimeSpan.FromSeconds(30)
             };
             var deepSeekApiClient = new DeepSeekApiClient(_deepSeekHttpClient);
+            _qwenHttpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+            var qwenApiClient = new QwenApiClient(_qwenHttpClient);
             var codexVersionService = new CodexVersionService(locator);
             var connectionSwitchCoordinator = new ConnectionSwitchCoordinator(
                 vault,
@@ -137,7 +148,9 @@ public partial class App : Application
                 switchCoordinator,
                 processController,
                 operationGate,
-                logger);
+                logger,
+                qwenStore: qwenStore,
+                qwenCredentialStore: qwenCredentialStore);
             var connectionIndexStore = new ConnectionIndexStore(paths);
             var dialogs = new DialogService();
 
@@ -158,7 +171,10 @@ public partial class App : Application
                 connectionSwitchCoordinator,
                 connectionIndexStore,
                 credentialHelperPath,
-                isUiPreview);
+                isUiPreview,
+                qwenStore,
+                qwenCredentialStore,
+                qwenApiClient);
             _mainWindow = new MainWindow(_viewModel);
             if (isCompactUiPreview)
             {
@@ -219,6 +235,8 @@ public partial class App : Application
 
         var credentialStore = new DeepSeekCredentialStore(paths.Root);
         var deepSeekStore = new DeepSeekConnectionStore(paths, credentialStore);
+        var qwenCredentialStore = new QwenCredentialStore(paths.Root);
+        var qwenStore = new QwenConnectionStore(paths, qwenCredentialStore);
         var configService = new DeepSeekCodexConfigService(
             new DeepSeekCodexConfigOptions(
                 paths.CodexConfigFile,
@@ -233,7 +251,9 @@ public partial class App : Application
             accountSwitchCoordinator,
             processController,
             operationGate,
-            logger);
+            logger,
+            qwenStore: qwenStore,
+            qwenCredentialStore: qwenCredentialStore);
         await connectionSwitchCoordinator.RecoverProviderStateAsync(cancellationToken);
 
         if (configService.IsApplied)
@@ -343,6 +363,8 @@ public partial class App : Application
         _trayIcon = null;
         _deepSeekHttpClient?.Dispose();
         _deepSeekHttpClient = null;
+        _qwenHttpClient?.Dispose();
+        _qwenHttpClient = null;
         _singleInstance?.Dispose();
         _singleInstance = null;
         base.OnExit(e);

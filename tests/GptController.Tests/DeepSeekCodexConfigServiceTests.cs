@@ -66,7 +66,7 @@ public sealed class DeepSeekCodexConfigServiceTests
     }
 
     [Fact]
-    public async Task Apply_EscapesWindowsPathsAndWritesOnlyFlashToCatalog()
+    public async Task Apply_EscapesWindowsPathsAndWritesBothSelectableModelsToCatalog()
     {
         using var fixture = new ConfigFixture(
             modelCatalogRelativePath: @"catalog folder\models.json",
@@ -83,11 +83,51 @@ public sealed class DeepSeekCodexConfigServiceTests
         var catalog = await File.ReadAllTextAsync(fixture.ModelCatalogPath);
         using var json = JsonDocument.Parse(catalog);
         var models = json.RootElement.GetProperty("models");
-        Assert.Single(models.EnumerateArray());
+        Assert.Equal(2, models.GetArrayLength());
         Assert.Equal(
             DeepSeekCodexConfigService.FlashModel,
             models[0].GetProperty("slug").GetString());
-        Assert.DoesNotContain("deepseek-v4-pro", catalog, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            DeepSeekCodexConfigService.ProModel,
+            models[1].GetProperty("slug").GetString());
+    }
+
+    [Fact]
+    public async Task ChangeModel_UpdatesOnlyManagedModelAndCanSwitchBack()
+    {
+        using var fixture = new ConfigFixture();
+        await File.WriteAllTextAsync(
+            fixture.ConfigPath,
+            "custom_root = \"keep\"" + Environment.NewLine);
+        await fixture.Service.ApplyAsync();
+
+        var changed = await fixture.Service.ChangeModelAsync(
+            DeepSeekCodexConfigService.ProModel);
+
+        Assert.Equal(DeepSeekConfigChangeStatus.Applied, changed.Status);
+        var proConfig = await File.ReadAllTextAsync(fixture.ConfigPath);
+        Assert.Contains("model = \"deepseek-v4-pro\"", proConfig);
+        Assert.Contains("custom_root = \"keep\"", proConfig);
+
+        var restored = await fixture.Service.ChangeModelAsync(
+            DeepSeekCodexConfigService.FlashModel);
+
+        Assert.Equal(DeepSeekConfigChangeStatus.Applied, restored.Status);
+        var flashConfig = await File.ReadAllTextAsync(fixture.ConfigPath);
+        Assert.Contains("model = \"deepseek-v4-flash\"", flashConfig);
+        Assert.Contains("custom_root = \"keep\"", flashConfig);
+    }
+
+    [Fact]
+    public async Task Apply_WithProModelUsesSelectedDefault()
+    {
+        using var fixture = new ConfigFixture();
+
+        await fixture.Service.ApplyAsync(DeepSeekCodexConfigService.ProModel);
+
+        Assert.Contains(
+            "model = \"deepseek-v4-pro\"",
+            await File.ReadAllTextAsync(fixture.ConfigPath));
     }
 
     [Fact]
