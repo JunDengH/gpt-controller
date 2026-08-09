@@ -135,6 +135,27 @@ public sealed class DeepSeekApiClientTests
     }
 
     [Fact]
+    public async Task TestResponseUsesSelectedProModel()
+    {
+        var handler = new RecordingHandler(_ => JsonResponse(
+            """
+            {
+              "id": "resp_pro",
+              "output_text": "OK"
+            }
+            """));
+        using var httpClient = new HttpClient(handler);
+        var client = new DeepSeekApiClient(httpClient);
+
+        await client.TestResponseAsync(ApiKey, DeepSeekDefaults.ProModel);
+
+        using var request = JsonDocument.Parse(handler.RequestBody!);
+        Assert.Equal(
+            DeepSeekDefaults.ProModel,
+            request.RootElement.GetProperty("model").GetString());
+    }
+
+    [Fact]
     public async Task TestResponseAcceptsTopLevelOutputText()
     {
         var handler = new RecordingHandler(_ => JsonResponse(

@@ -56,6 +56,30 @@ public sealed class DeepSeekConnectionStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoadPreservesSelectedProModel()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var paths = new AppPaths(_root, _root);
+        var store = new DeepSeekConnectionStore(
+            paths,
+            new DeepSeekCredentialStore(paths.Root));
+
+        await store.SaveAsync(
+            new DeepSeekConnection
+            {
+                Nickname = "DeepSeek V4",
+                Model = DeepSeekDefaults.ProModel
+            },
+            "sk-deepseek-secret-1234567890");
+
+        Assert.Equal(DeepSeekDefaults.ProModel, (await store.GetAsync())!.Model);
+    }
+
+    [Fact]
     public async Task Save_WhenConnectionMetadataIsLocked_DoesNotRotateExistingKey()
     {
         if (!OperatingSystem.IsWindows())

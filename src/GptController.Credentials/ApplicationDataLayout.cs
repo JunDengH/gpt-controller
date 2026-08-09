@@ -5,11 +5,14 @@ public static class ApplicationDataLayout
     public const string ApplicationDirectoryName = "GptController";
     public const string LegacyApplicationDirectoryName = "GptAccountManager";
     public const string DeepSeekProvider = "deepseek";
+    public const string QwenProvider = "qwen";
     public const string DeepSeekModel = "deepseek-v4-flash";
     public const string DeepSeekCredentialEntropyPurpose =
         "GptController/DeepSeekCredential/v2";
     public const string LegacyDeepSeekCredentialEntropyPurpose =
         "GptAccountManager/DeepSeekCredential/v1";
+    public const string QwenCredentialEntropyPurpose =
+        "GptController/QwenCredential/v1";
 
     public static string GetDefaultRoot()
     {

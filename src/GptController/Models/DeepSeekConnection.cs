@@ -42,5 +42,20 @@ public enum DeepSeekConnectionStatus
 public static class DeepSeekDefaults
 {
     public const string BaseUrl = "https://api.deepseek.com/";
-    public const string Model = "deepseek-v4-flash";
+    public const string FlashModel = "deepseek-v4-flash";
+    public const string ProModel = "deepseek-v4-pro";
+    public const string Model = FlashModel;
+
+    public static IReadOnlyList<string> SupportedModels { get; } =
+        [FlashModel, ProModel];
+
+    public static bool IsSupportedModel(string? model) =>
+        SupportedModels.Contains(model, StringComparer.Ordinal);
+
+    public static string GetModelDisplayName(string model) => model switch
+    {
+        FlashModel => "V4 Flash",
+        ProModel => "V4 Pro",
+        _ => model
+    };
 }

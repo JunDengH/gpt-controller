@@ -1,0 +1,257 @@
+<Window x:Class="GptController.Views.QwenConnectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        Title="千问 API 连接"
+        Width="548"
+        SizeToContent="Height"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None">
+    <Window.Resources>
+        <Style x:Key="DialogComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="14,0,42,0" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="MaxDropDownHeight" Value="280" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="InputBorder"
+                                    MinHeight="{TemplateBinding MinHeight}"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="12">
+                                <Grid>
+                                    <TextBlock Margin="{TemplateBinding Padding}"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               IsHitTestVisible="False"
+                                               Text="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource TemplatedParent}}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <iconPacks:PackIconMaterial Width="16" Height="16"
+                                                                Margin="0,0,14,0"
+                                                                HorizontalAlignment="Right"
+                                                                VerticalAlignment="Center"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                                Kind="ChevronDown" />
+                                </Grid>
+                            </Border>
+                            <ToggleButton Background="Transparent"
+                                          BorderThickness="0"
+                                          ClickMode="Press"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent" />
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Fade">
+                                <Border Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Margin="0,5,0,0"
+                                        Padding="4"
+                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                        BorderBrush="{StaticResource ControlBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Effect="{StaticResource CardShadow}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel IsItemsHost="True" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="InputBorder"
+                                        Property="BorderBrush"
+                                        Value="{StaticResource ControlBorderHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="InputBorder"
+                                        Property="BorderBrush"
+                                        Value="{StaticResource FocusRingBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="InputBorder" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBorder"
+                                MinHeight="{TemplateBinding MinHeight}"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="7">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{StaticResource SurfaceHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{StaticResource SelectedSurfaceBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="28">
+        <Border Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="20"
+                Effect="{StaticResource DialogShadow}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="68" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Border Background="{StaticResource TitleBarBrush}"
+                        BorderBrush="{StaticResource BorderSubtleBrush}"
+                        BorderThickness="0,0,0,1"
+                        CornerRadius="19,19,0,0"
+                        MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    <Grid Margin="22,0,14,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="34" Height="34"
+                                    Background="{StaticResource DeepSeekTintBrush}"
+                                    CornerRadius="17">
+                                <iconPacks:PackIconMaterial Width="18" Height="18"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Foreground="{StaticResource DeepSeekAccentBrush}"
+                                                            Kind="CloudOutline" />
+                            </Border>
+                            <TextBlock Margin="11,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Text="千问 API 连接" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource DialogCloseButtonStyle}"
+                                AutomationProperties.Name="关闭千问连接弹窗"
+                                Click="Cancel_Click" ToolTip="关闭">
+                            <iconPacks:PackIconMaterial Width="18" Height="18" Kind="Close" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Row="1" Margin="{StaticResource DialogBodyMargin}">
+                    <TextBlock x:Name="RegionLabel" FontSize="14" FontWeight="SemiBold" Text="地域" />
+                    <ComboBox x:Name="RegionComboBox"
+                              Margin="0,9,0,18"
+                              Style="{StaticResource DialogComboBoxStyle}"
+                              DisplayMemberPath="DisplayName"
+                              AutomationProperties.LabeledBy="{Binding ElementName=RegionLabel}"
+                              SelectionChanged="Region_Changed" />
+
+                    <TextBlock x:Name="WorkspaceLabel" FontSize="14" FontWeight="SemiBold" Text="业务空间 ID" />
+                    <TextBox x:Name="WorkspaceTextBox"
+                             Margin="0,9,0,0"
+                             MaxLength="63"
+                             Style="{StaticResource DialogTextBoxStyle}"
+                             AutomationProperties.LabeledBy="{Binding ElementName=WorkspaceLabel}"
+                             TextChanged="Input_Changed" />
+                    <TextBlock x:Name="WorkspaceHintText"
+                               Margin="2,6,0,18"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11.5"
+                               TextWrapping="Wrap" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ApiKeyLabel" FontSize="14" FontWeight="SemiBold" Text="API Key" />
+                        <Button Grid.Column="1"
+                                Style="{StaticResource SmallGhostButtonStyle}"
+                                Click="OpenApiKeys_Click"
+                                Content="创建 Key" />
+                    </Grid>
+                    <PasswordBox x:Name="ApiKeyPasswordBox"
+                                 Margin="0,9,0,0"
+                                 Style="{StaticResource DialogPasswordBoxStyle}"
+                                 AutomationProperties.LabeledBy="{Binding ElementName=ApiKeyLabel}"
+                                 PasswordChanged="Input_Changed" />
+                    <TextBlock x:Name="KeyHintText"
+                               Margin="2,6,0,18"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11.5"
+                               Text="Key 仅使用 Windows DPAPI 加密保存在当前用户账户下。" />
+
+                    <Border Padding="14" Background="{StaticResource DeepSeekTintBrush}" CornerRadius="12">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="阿里云百炼 · OpenAI 兼容 Responses API" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="11.5"
+                                       TextWrapping="Wrap"
+                                       Text="下一步会读取该地域可用模型。选择模型后将发送一次最小兼容性请求，可能产生少量 Token 费用。" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Margin="0,22,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="11.5"
+                                   Text="仅支持按量付费 API Key" />
+                        <Button Grid.Column="1" Width="92" MinHeight="42" Margin="0,0,10,0"
+                                IsCancel="True" Click="Cancel_Click" Content="取消" />
+                        <Button x:Name="SaveButton" Grid.Column="2" Width="112" MinHeight="42"
+                                IsDefault="True" Click="Save_Click"
+                                Content="获取模型"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -177,7 +177,7 @@ public sealed class DeepSeekConnectionStore
             cancellationToken);
         if (connection is null ||
             !string.Equals(connection.Id, DeepSeekConnection.FixedId, StringComparison.Ordinal) ||
-            !string.Equals(connection.Model, DeepSeekDefaults.Model, StringComparison.Ordinal))
+            !DeepSeekDefaults.IsSupportedModel(connection.Model))
         {
             throw new InvalidDataException("DeepSeek 连接元数据无效。");
         }
@@ -207,10 +207,15 @@ public sealed class DeepSeekConnectionStore
         DeepSeekCredentialMetadata credential)
     {
         var now = DateTimeOffset.UtcNow;
+        if (!DeepSeekDefaults.IsSupportedModel(connection.Model))
+        {
+            throw new InvalidDataException("DeepSeek 模型不受支持。");
+        }
+
         return connection with
         {
             Id = DeepSeekConnection.FixedId,
-            Model = DeepSeekDefaults.Model,
+            Model = connection.Model,
             KeyLastFour = credential.KeyLastFour,
             CreatedAt = existing?.CreatedAt ?? now,
             UpdatedAt = now

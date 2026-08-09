@@ -22,6 +22,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly DeepSeekConnectionStore _deepSeekStore;
     private readonly DeepSeekCredentialStore _deepSeekCredentialStore;
     private readonly IDeepSeekApiClient _deepSeekApiClient;
+    private readonly QwenConnectionStore? _qwenStore;
+    private readonly QwenCredentialStore? _qwenCredentialStore;
+    private readonly IQwenApiClient? _qwenApiClient;
     private readonly CodexVersionService _codexVersionService;
     private readonly ConnectionSwitchCoordinator _connectionSwitchCoordinator;
     private readonly ConnectionIndexStore _connectionIndexStore;
@@ -58,7 +61,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ConnectionSwitchCoordinator connectionSwitchCoordinator,
         ConnectionIndexStore connectionIndexStore,
         string credentialHelperPath,
-        bool isUiPreview = false)
+        bool isUiPreview = false,
+        QwenConnectionStore? qwenStore = null,
+        QwenCredentialStore? qwenCredentialStore = null,
+        IQwenApiClient? qwenApiClient = null)
     {
         _vault = vault;
         _settingsService = settingsService;
@@ -72,6 +78,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _deepSeekStore = deepSeekStore;
         _deepSeekCredentialStore = deepSeekCredentialStore;
         _deepSeekApiClient = deepSeekApiClient;
+        _qwenStore = qwenStore;
+        _qwenCredentialStore = qwenCredentialStore;
+        _qwenApiClient = qwenApiClient;
         _codexVersionService = codexVersionService;
         _connectionSwitchCoordinator = connectionSwitchCoordinator;
         _connectionIndexStore = connectionIndexStore;
@@ -86,6 +95,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             () => !IsBusy && !HasPendingAccountRecovery);
         ConfigureDeepSeekCommand = new AsyncRelayCommand(
             ConfigureDeepSeekAsync,
+            () => !IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery);
+        ConfigureQwenCommand = new AsyncRelayCommand(
+            ConfigureQwenAsync,
             () => !IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery);
         RefreshAllCommand = new AsyncRelayCommand(
             RefreshAllAsync,
@@ -103,9 +115,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 !HasActiveRefresh &&
                 !HasPendingAccountRecovery &&
                 !account.IsRefreshing);
-        RenameAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
-            RenameAccountAsync,
-            _ => !IsBusy && !HasPendingAccountRecovery);
         DeleteAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             DeleteAccountAsync,
             account => !IsBusy && !HasPendingAccountRecovery && account.CanDelete);
@@ -116,6 +125,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 !HasActiveRefresh &&
                 !HasPendingAccountRecovery &&
                 account.IsDeepSeek);
+        SelectApiModelCommand = new AsyncRelayCommand<AccountCardViewModel>(
+            SelectApiModelAsync,
+            account =>
+                !IsBusy &&
+                !HasActiveRefresh &&
+                !HasPendingAccountRecovery &&
+                account.IsApiProvider);
 
         _quotaTimer.Tick += async (_, _) =>
         {
@@ -133,23 +149,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public AsyncRelayCommand AddAccountCommand { get; }
     public AsyncRelayCommand ImportCurrentCommand { get; }
     public AsyncRelayCommand ConfigureDeepSeekCommand { get; }
+    public AsyncRelayCommand ConfigureQwenCommand { get; }
     public AsyncRelayCommand RefreshAllCommand { get; }
     public AsyncRelayCommand SaveSettingsCommand { get; }
     public RelayCommand ShowAccountsCommand { get; }
     public RelayCommand ShowSettingsCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> SwitchAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> RefreshAccountCommand { get; }
-    public AsyncRelayCommand<AccountCardViewModel> RenameAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> DeleteAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> TestApiConnectionCommand { get; }
+    public AsyncRelayCommand<AccountCardViewModel> SelectApiModelCommand { get; }
 
     public event EventHandler? AccountsChanged;
+
+    public IReadOnlyList<AccountCardViewModel> ChatGptAccounts =>
+        Accounts.Where(account => !account.IsApiProvider).ToList();
+
+    public IReadOnlyList<AccountCardViewModel> ApiConnections =>
+        Accounts.Where(account => account.IsApiProvider).ToList();
 
     public string ApplicationVersion => ApplicationInfo.Version;
 
     public string DeepSeekMenuLabel => Accounts.Any(item => item.IsDeepSeek)
         ? "编辑 DeepSeek API"
         : "添加 DeepSeek API";
+
+    public string QwenMenuLabel => Accounts.Any(item => item.IsQwen)
+        ? "配置千问 API"
+        : "添加千问 API";
 
     public string CurrentProviderText => Accounts.FirstOrDefault(item => item.IsActive) is { } account
         ? $"当前连接 · {account.ProviderDisplayName} · {account.Nickname}"
@@ -256,7 +283,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             await ReloadAccountsAsync(_lifetimeCts.Token);
-            if (Accounts.All(item => item.IsDeepSeek) &&
+            if (Accounts.All(item => item.IsApiProvider) &&
                 _importService.HasLiveAccount &&
                 _dialogs.Ask(
                     "导入当前账号",
@@ -511,10 +538,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     foreach (var account in Accounts.ToList())
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        if (reason == QuotaRefreshReason.Automatic &&
-                            !account.IsDeepSeek &&
-                            QuotaRefreshPolicy.ShouldSkipAutomatic(
-                                account.Profile.Quota))
+                        if (ShouldSkipRefresh(account, reason))
                         {
                             continue;
                         }
@@ -597,6 +621,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (account.IsDeepSeek)
             {
                 await RefreshDeepSeekCoreAsync(account, cancellationToken);
+            }
+            else if (account.IsQwen)
+            {
+                await RefreshQwenCoreAsync(account, cancellationToken);
             }
             else
             {
@@ -687,10 +715,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     {
                         IsActive = item.Id == account.Id
                     })
-                    : new AccountCardViewModel(item.Profile with
-                    {
-                        IsActive = item.Id == account.Id
-                    }))
+                    : item.IsQwen
+                        ? new AccountCardViewModel(item.QwenProfile! with
+                        {
+                            IsActive = item.Id == account.Id
+                        })
+                        : new AccountCardViewModel(item.Profile with
+                        {
+                            IsActive = item.Id == account.Id
+                        }))
                 .OrderByDescending(item => item.IsActive)
                 .ThenBy(item => item.Nickname, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
@@ -722,7 +755,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await CancelAndDrainRefreshesAsync();
-            if (account.IsDeepSeek)
+            if (account.IsApiProvider)
             {
                 StatusMessage = "正在检查 Codex 版本…";
                 var version = await _codexVersionService.CheckAsync(
@@ -731,10 +764,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 {
                     var installed = version.InstalledVersion?.ToString() ??
                         version.DisplayText;
-                    StatusMessage = "Codex 版本不支持 DeepSeek";
+                    StatusMessage = "Codex 版本不支持 API 连接";
                     _dialogs.Error(
-                        "无法启用 DeepSeek",
-                        $"DeepSeek 连接要求 Codex {version.MinimumVersion} 或更高版本，当前为 {installed}。");
+                        "无法启用 API 连接",
+                        $"模型 API 连接要求 Codex {version.MinimumVersion} 或更高版本，当前为 {installed}。");
                     return;
                 }
             }
@@ -745,17 +778,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 ? await _connectionSwitchCoordinator.SwitchToDeepSeekAsync(
                     progress,
                     _lifetimeCts.Token)
+                : account.IsQwen
+                    ? await _connectionSwitchCoordinator.SwitchToQwenAsync(
+                        progress,
+                        _lifetimeCts.Token)
                 : await _connectionSwitchCoordinator.SwitchToChatGptAsync(
                     account.Id,
                     forceConfigRestore: false,
                     progress,
                     _lifetimeCts.Token);
             if (result.Status == SwitchStatus.ConfigurationConflict &&
-                !account.IsDeepSeek &&
+                !account.IsApiProvider &&
                 _dialogs.Confirm(
                     "Codex 配置冲突",
                     result.Message +
-                    "\n\n按备份恢复只会覆盖 DeepSeek 接管的字段；新增的 MCP、项目信任和其他 Provider 会保留。确认继续吗？",
+                    "\n\n按备份恢复只会覆盖模型 API 接管的字段；新增的 MCP、项目信任和其他 Provider 会保留。确认继续吗？",
                     primaryActionText: "按备份恢复"))
             {
                 result = await _connectionSwitchCoordinator.SwitchToChatGptAsync(
@@ -789,79 +826,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             IsBusy = false;
         }
 
-        if (refreshAfterSwitch && !_disposed && !account.IsDeepSeek)
+        if (refreshAfterSwitch && !_disposed && !account.IsApiProvider)
         {
             StartPostSwitchRefresh(account.Id);
-        }
-    }
-
-    private async Task RenameAccountAsync(AccountCardViewModel account)
-    {
-        if (account.IsDeepSeek)
-        {
-            await ConfigureDeepSeekAsync();
-            return;
-        }
-
-        if (_isUiPreview)
-        {
-            var previewNickname = _dialogs.Prompt(
-                "编辑昵称",
-                "账号昵称",
-                account.Nickname);
-            if (string.IsNullOrWhiteSpace(previewNickname) ||
-                previewNickname == account.Nickname)
-            {
-                return;
-            }
-
-            account.UpdateProfile(account.Profile with
-            {
-                Nickname = previewNickname.Trim()
-            });
-            NotifyConnectionsChanged();
-            StatusMessage = "预览：昵称已更新（未写入本地数据）";
-            return;
-        }
-
-        var nickname = _dialogs.Prompt("编辑昵称", "账号昵称", account.Nickname);
-        if (string.IsNullOrWhiteSpace(nickname) || nickname == account.Nickname)
-        {
-            return;
-        }
-
-        IsBusy = true;
-        try
-        {
-            await CancelAndDrainRefreshesAsync();
-            var profile = await _vault.GetProfileAsync(
-                account.Id,
-                _lifetimeCts.Token);
-            if (profile is null)
-            {
-                return;
-            }
-
-            await _vault.UpsertProfileAsync(
-                profile with { Nickname = nickname.Trim() },
-                cancellationToken: _lifetimeCts.Token);
-            await ReloadAccountsAsync(_lifetimeCts.Token);
-            StatusMessage = "昵称已更新";
-        }
-        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
-        {
-            // Application shutdown cancels mutation without showing an error.
-        }
-        catch (Exception exception)
-        {
-            StatusMessage = "昵称更新失败";
-            _dialogs.Error(
-                "编辑昵称失败",
-                RedactingLogger.Redact(exception.Message));
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -881,17 +848,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (account.IsActive)
+        if (account.IsActive && !account.IsApiProvider)
         {
             _dialogs.Info("无法删除", "请先切换到其他连接，再删除当前连接。");
             return;
         }
 
+        var deleteMessage = account.IsActive && account.IsApiProvider
+            ? $"确定删除“{account.Nickname}”吗？\n\n" +
+              "应用会先恢复此前的 ChatGPT OAuth 连接并重启 ChatGPT，然后删除本机 DPAPI 加密的 API Key 与连接元数据。"
+            : account.IsApiProvider
+                ? $"确定删除“{account.Nickname}”吗？\n\n本机 DPAPI 加密的 API Key 与连接元数据会一并删除。"
+                : $"确定删除“{account.Nickname}”吗？\n\n只会删除本软件保存的加密档案，不会退出或注销 OpenAI 账号。";
         if (!_dialogs.Confirm(
                 "删除连接",
-                account.IsDeepSeek
-                    ? $"确定删除“{account.Nickname}”吗？\n\n本机 DPAPI 加密的 API Key 与连接元数据会一并删除。"
-                    : $"确定删除“{account.Nickname}”吗？\n\n只会删除本软件保存的加密档案，不会退出或注销 OpenAI 账号。",
+                deleteMessage,
                 primaryActionText: "删除",
                 isDangerous: true))
         {
@@ -902,9 +873,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await CancelAndDrainRefreshesAsync();
+            if (account.IsActive && account.IsApiProvider)
+            {
+                StatusMessage = "正在恢复此前的 ChatGPT 连接…";
+                var originalProfile = await _importService.FindLiveProfileAsync(
+                    _lifetimeCts.Token);
+                if (originalProfile is null)
+                {
+                    throw new InvalidOperationException(
+                        "无法识别此前的 ChatGPT OAuth 账号。API 连接尚未删除，请先手动切换到一个 ChatGPT 账号。");
+                }
+
+                var restore = await _connectionSwitchCoordinator.SwitchToChatGptAsync(
+                    originalProfile.Id,
+                    forceConfigRestore: false,
+                    cancellationToken: _lifetimeCts.Token);
+                if (!restore.IsSuccess)
+                {
+                    throw new InvalidOperationException(restore.Message);
+                }
+            }
+
             if (account.IsDeepSeek)
             {
                 await _deepSeekStore.DeleteAsync(_lifetimeCts.Token);
+            }
+            else if (account.IsQwen && _qwenStore is not null)
+            {
+                await _qwenStore.DeleteAsync(_lifetimeCts.Token);
             }
             else
             {
@@ -919,7 +915,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            if (account.IsDeepSeek)
+            if (account.IsApiProvider)
             {
                 try
                 {
@@ -983,6 +979,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             var apiKey = await _deepSeekCredentialStore.ReadAsync(_lifetimeCts.Token);
             var result = await _deepSeekApiClient.TestResponseAsync(
                 apiKey,
+                account.DeepSeekProfile!.Model,
                 _lifetimeCts.Token);
             var profile = account.DeepSeekProfile! with
             {
@@ -1010,6 +1007,424 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             StatusMessage = "DeepSeek Responses API 测试失败";
             _dialogs.Error("Responses 测试失败", RedactingLogger.Redact(exception.Message));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task SelectApiModelAsync(AccountCardViewModel account)
+    {
+        if (!account.IsApiProvider)
+        {
+            return;
+        }
+
+        var models = account.IsDeepSeek
+            ? DeepSeekDefaults.SupportedModels.Select(item => new ApiModelDescriptor
+            {
+                Id = item,
+                DisplayName = DeepSeekDefaults.GetModelDisplayName(item)
+            }).ToArray()
+            : account.QwenProfile!.Models;
+        string? qwenApiKey = null;
+
+        if (!_isUiPreview && account.IsQwen)
+        {
+            if (_qwenCredentialStore is null || _qwenApiClient is null || _qwenStore is null)
+            {
+                _dialogs.Error("模型选择", "千问服务未正确初始化。");
+                return;
+            }
+
+            try
+            {
+                qwenApiKey = await _qwenCredentialStore.ReadAsync(_lifetimeCts.Token);
+                models = await FetchAndStoreQwenModelsAsync(
+                    account,
+                    qwenApiKey,
+                    _lifetimeCts.Token);
+            }
+            catch (QwenApiException exception)
+            {
+                if (models.Count == 0)
+                {
+                    StatusMessage = "千问模型获取失败";
+                    _dialogs.Error("模型选择", exception.Message);
+                    return;
+                }
+
+                StatusMessage = "模型获取失败，正在显示上次缓存";
+                _dialogs.Info("使用缓存模型", exception.Message);
+            }
+            catch (Exception exception)
+            {
+                StatusMessage = "千问模型获取失败";
+                _dialogs.Error("模型选择", RedactingLogger.Redact(exception.Message));
+                return;
+            }
+        }
+
+        if (models.Count == 0)
+        {
+            _dialogs.Error("模型选择", "没有可用的模型缓存，请先刷新连接。");
+            return;
+        }
+
+        var currentModel = account.ApiPresentation!.Model;
+        var selected = _dialogs.PromptApiModel(
+            account.IsDeepSeek ? "DeepSeek API" : "千问 API",
+            models,
+            currentModel,
+            requiresPaidValidation: account.IsQwen,
+            account.IsQwen && !_isUiPreview
+                ? cancellationToken => FetchAndStoreQwenModelsAsync(
+                    account,
+                    qwenApiKey!,
+                    cancellationToken)
+                : _ => Task.FromResult<IReadOnlyList<ApiModelDescriptor>>(models));
+        if (selected is null || string.Equals(selected, currentModel, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (_isUiPreview)
+        {
+            if (account.IsDeepSeek)
+            {
+                account.UpdateDeepSeek(account.DeepSeekProfile! with { Model = selected });
+            }
+            else
+            {
+                account.UpdateQwen(account.QwenProfile! with
+                {
+                    Model = selected,
+                    LastValidatedAt = DateTimeOffset.Now
+                });
+            }
+
+            NotifyConnectionsChanged();
+            StatusMessage = $"预览：已选择 {selected}";
+            return;
+        }
+
+        if (account.IsActive &&
+            _processController.IsChatGptRunning() &&
+            !_dialogs.Confirm(
+                "切换 API 模型",
+                $"切换到 {selected} 需要关闭并重启 ChatGPT。正在运行的任务可能会被中断。",
+                primaryActionText: "切换并重启"))
+        {
+            StatusMessage = "已取消模型切换";
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            DateTimeOffset? validatedAt = null;
+            if (account.IsQwen)
+            {
+                var qwen = account.QwenProfile!;
+                StatusMessage = $"正在验证 {selected} 的 Codex 兼容性…";
+                _ = await _qwenApiClient!.ValidateModelAsync(
+                    qwenApiKey!,
+                    qwen.Region,
+                    qwen.WorkspaceId,
+                    selected,
+                    _lifetimeCts.Token);
+                validatedAt = DateTimeOffset.UtcNow;
+            }
+
+            var progress = new ImmediateProgress<SwitchStage>(stage =>
+                StatusMessage = stage == SwitchStage.ConfiguringProvider
+                    ? $"正在应用 {selected}…"
+                    : DescribeSwitchStage(stage, selected));
+            var result = await _connectionSwitchCoordinator.ChangeApiModelAsync(
+                account.Provider,
+                selected,
+                validatedAt,
+                progress,
+                _lifetimeCts.Token);
+            await ReloadAccountsAsync(_lifetimeCts.Token);
+            StatusMessage = result.Message;
+            if (!result.IsSuccess)
+            {
+                _dialogs.Error("模型切换", result.Message);
+            }
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels the model change.
+        }
+        catch (QwenApiException exception)
+        {
+            StatusMessage = "模型兼容性验证失败";
+            _dialogs.Error("模型切换", exception.Message);
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = "模型切换失败";
+            _dialogs.Error("模型切换失败", RedactingLogger.Redact(exception.Message));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task<IReadOnlyList<ApiModelDescriptor>> FetchAndStoreQwenModelsAsync(
+        AccountCardViewModel account,
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        var qwen = account.QwenProfile
+            ?? throw new InvalidOperationException("千问连接不存在。");
+        var models = await _qwenApiClient!.GetModelsAsync(
+            apiKey,
+            qwen.Region,
+            qwen.WorkspaceId,
+            cancellationToken);
+        var updated = await _qwenStore!.SaveAsync(
+            qwen with
+            {
+                Models = models,
+                ModelsFetchedAt = DateTimeOffset.UtcNow,
+                IsModelCacheStale = false,
+                Status = models.Any(item => string.Equals(
+                    item.Id,
+                    qwen.Model,
+                    StringComparison.Ordinal))
+                    ? ApiConnectionStatus.Available
+                    : ApiConnectionStatus.Unavailable,
+                ErrorCode = models.Any(item => string.Equals(
+                    item.Id,
+                    qwen.Model,
+                    StringComparison.Ordinal))
+                    ? null
+                    : "selected_model_missing"
+            },
+            cancellationToken: cancellationToken);
+        account.UpdateQwen(updated);
+        NotifyConnectionsChanged();
+        return models;
+    }
+
+    private async Task RefreshQwenCoreAsync(
+        AccountCardViewModel account,
+        CancellationToken cancellationToken)
+    {
+        if (_qwenStore is null || _qwenCredentialStore is null || _qwenApiClient is null)
+        {
+            throw new InvalidOperationException("千问服务未正确初始化。");
+        }
+
+        var current = account.QwenProfile
+            ?? throw new InvalidOperationException("千问连接不存在。");
+        try
+        {
+            var apiKey = await _qwenCredentialStore.ReadAsync(cancellationToken);
+            var models = await _qwenApiClient.GetModelsAsync(
+                apiKey,
+                current.Region,
+                current.WorkspaceId,
+                cancellationToken);
+            var selectedStillAvailable = models.Any(item => string.Equals(
+                item.Id,
+                current.Model,
+                StringComparison.Ordinal));
+            var updated = current with
+            {
+                Models = models,
+                ModelsFetchedAt = DateTimeOffset.UtcNow,
+                IsModelCacheStale = false,
+                Status = selectedStillAvailable
+                    ? ApiConnectionStatus.Available
+                    : ApiConnectionStatus.Unavailable,
+                ErrorCode = selectedStillAvailable ? null : "selected_model_missing"
+            };
+            updated = await _qwenStore.SaveAsync(
+                updated,
+                cancellationToken: cancellationToken);
+            account.UpdateQwen(updated);
+        }
+        catch (QwenApiException exception)
+        {
+            var failed = current with
+            {
+                IsModelCacheStale = current.Models.Count > 0,
+                Status = MapConnectionStatus(exception.ErrorKind),
+                ErrorCode = exception.ErrorKind.ToString()
+            };
+            failed = await _qwenStore.SaveAsync(
+                failed,
+                cancellationToken: cancellationToken);
+            account.UpdateQwen(failed);
+            throw;
+        }
+    }
+
+    private async Task ConfigureQwenAsync()
+    {
+        var existingCard = Accounts.FirstOrDefault(item => item.IsQwen);
+        var existing = existingCard?.QwenProfile;
+        if (existing?.IsActive == true && !_isUiPreview)
+        {
+            _dialogs.Info(
+                "当前连接正在使用",
+                "请先切换到其他连接，再更新千问地域或 API Key。模型可直接从卡片上的模型按钮切换。");
+            return;
+        }
+
+        var input = _dialogs.PromptQwenConnection(existing);
+        if (input is null)
+        {
+            return;
+        }
+
+        if (_isUiPreview)
+        {
+            var preview = CreatePreviewQwen() with
+            {
+                Region = input.Region,
+                WorkspaceId = input.WorkspaceId
+            };
+            var selected = _dialogs.PromptApiModel(
+                "千问 API",
+                preview.Models,
+                preview.Model,
+                requiresPaidValidation: true,
+                _ => Task.FromResult(preview.Models));
+            if (selected is null)
+            {
+                return;
+            }
+
+            preview = preview with { Model = selected };
+            if (existingCard is null)
+            {
+                Accounts.Insert(0, new AccountCardViewModel(preview));
+            }
+            else
+            {
+                existingCard.UpdateQwen(preview);
+            }
+
+            NotifyConnectionsChanged();
+            StatusMessage = "预览：千问连接已更新";
+            return;
+        }
+
+        if (_qwenStore is null || _qwenCredentialStore is null || _qwenApiClient is null)
+        {
+            _dialogs.Error("千问连接", "千问服务未正确初始化，请重新安装完整应用包。");
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            if (!File.Exists(_credentialHelperPath))
+            {
+                throw new FileNotFoundException(
+                    "API 凭据助手缺失，请使用完整的 GPT Controller 应用包。",
+                    _credentialHelperPath);
+            }
+
+            StatusMessage = "正在检查 Codex 版本…";
+            var version = await _codexVersionService.CheckAsync(_lifetimeCts.Token);
+            if (!version.IsSupported)
+            {
+                var installed = version.InstalledVersion?.ToString() ?? version.DisplayText;
+                throw new InvalidOperationException(
+                    $"千问连接要求 Codex {version.MinimumVersion} 或更高版本，当前为 {installed}。");
+            }
+
+            var apiKey = input.ApiKey ??
+                await _qwenCredentialStore.ReadAsync(_lifetimeCts.Token);
+            StatusMessage = "正在获取千问可用模型…";
+            var models = await _qwenApiClient.GetModelsAsync(
+                apiKey,
+                input.Region,
+                input.WorkspaceId,
+                _lifetimeCts.Token);
+            if (models.Count == 0)
+            {
+                throw new InvalidDataException(
+                    "该地域没有返回可用的千问模型，请检查 API Key 和业务空间权限。");
+            }
+
+            var initialModel = existing is not null && models.Any(item =>
+                    string.Equals(item.Id, existing.Model, StringComparison.Ordinal))
+                ? existing.Model
+                : models[0].Id;
+            IReadOnlyList<ApiModelDescriptor> latestModels = models;
+            var selected = _dialogs.PromptApiModel(
+                "千问 API",
+                models,
+                initialModel,
+                requiresPaidValidation: true,
+                async cancellationToken =>
+                {
+                    latestModels = await _qwenApiClient.GetModelsAsync(
+                        apiKey,
+                        input.Region,
+                        input.WorkspaceId,
+                        cancellationToken);
+                    return latestModels;
+                });
+            if (selected is null)
+            {
+                StatusMessage = "已取消配置千问连接";
+                return;
+            }
+
+            StatusMessage = $"正在验证 {selected} 的 Codex 兼容性…";
+            _ = await _qwenApiClient.ValidateModelAsync(
+                apiKey,
+                input.Region,
+                input.WorkspaceId,
+                selected,
+                _lifetimeCts.Token);
+            var now = DateTimeOffset.UtcNow;
+            var connection = (existing ?? new QwenConnection()) with
+            {
+                Region = input.Region,
+                WorkspaceId = input.WorkspaceId,
+                Model = selected,
+                Models = latestModels
+                    .Append(new ApiModelDescriptor { Id = selected })
+                    .DistinctBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                ModelsFetchedAt = now,
+                IsModelCacheStale = false,
+                LastValidatedAt = now,
+                Status = ApiConnectionStatus.Available,
+                ErrorCode = null
+            };
+            await _qwenStore.SaveAsync(
+                connection,
+                input.ApiKey,
+                _lifetimeCts.Token);
+            await ReloadAccountsAsync(_lifetimeCts.Token);
+            StatusMessage = "千问 API 连接已验证并安全保存";
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels configuration.
+        }
+        catch (QwenApiException exception)
+        {
+            StatusMessage = "千问 API 验证失败";
+            _dialogs.Error("千问连接", exception.Message);
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = "千问连接保存失败";
+            _dialogs.Error("千问连接", RedactingLogger.Redact(exception.Message));
         }
         finally
         {
@@ -1158,6 +1573,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         Accounts.Clear();
         Accounts.Add(new AccountCardViewModel(CreatePreviewDeepSeek()));
+        Accounts.Add(new AccountCardViewModel(CreatePreviewQwen()));
         foreach (var profile in profiles)
         {
             Accounts.Add(new AccountCardViewModel(profile));
@@ -1209,14 +1625,30 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ => DeepSeekConnectionStatus.Unavailable
         };
 
+    private static ApiConnectionStatus MapConnectionStatus(
+        QwenApiErrorKind kind) => kind switch
+        {
+            QwenApiErrorKind.AuthenticationRequired =>
+                ApiConnectionStatus.AuthenticationRequired,
+            QwenApiErrorKind.PaymentRequired => ApiConnectionStatus.PaymentRequired,
+            QwenApiErrorKind.RateLimited => ApiConnectionStatus.RateLimited,
+            QwenApiErrorKind.Timeout or QwenApiErrorKind.Network =>
+                ApiConnectionStatus.Stale,
+            _ => ApiConnectionStatus.Unavailable
+        };
+
     private async Task ReloadAccountsAsync(
         CancellationToken cancellationToken)
     {
         var profiles = await _vault.LoadProfilesAsync(cancellationToken);
         var deepSeek = await _deepSeekStore.GetAsync(cancellationToken);
+        var qwen = _qwenStore is null
+            ? null
+            : await _qwenStore.GetAsync(cancellationToken);
         await _connectionIndexStore.SaveProjectionAsync(
             profiles,
             deepSeek,
+            qwen,
             cancellationToken);
         var existing = Accounts.ToDictionary(account => account.Id);
         Accounts.Clear();
@@ -1231,6 +1663,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             else
             {
                 Accounts.Add(new AccountCardViewModel(deepSeek));
+            }
+        }
+
+        if (qwen is not null)
+        {
+            if (existing.TryGetValue(AccountCardViewModel.QwenCardId, out var qwenCard) &&
+                qwenCard.IsQwen)
+            {
+                qwenCard.UpdateQwen(qwen);
+                Accounts.Add(qwenCard);
+            }
+            else
+            {
+                Accounts.Add(new AccountCardViewModel(qwen));
             }
         }
 
@@ -1274,10 +1720,32 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         LastValidatedAt = DateTimeOffset.Now.AddMinutes(-3)
     };
 
+    private static QwenConnection CreatePreviewQwen() => new()
+    {
+        Model = "qwen3-coder-plus",
+        Region = QwenRegion.Beijing,
+        WorkspaceId = "workspace-demo",
+        KeyLastFour = "QWEN",
+        Status = ApiConnectionStatus.Available,
+        Models =
+        [
+            new ApiModelDescriptor { Id = "qwen3-coder-plus" },
+            new ApiModelDescriptor { Id = "qwen3.8-max" },
+            new ApiModelDescriptor { Id = "qwen3.7-plus" },
+            new ApiModelDescriptor { Id = "qwen3.5-plus" },
+            new ApiModelDescriptor { Id = "qwen3-coder-plus-2026-07-28", IsSnapshot = true }
+        ],
+        ModelsFetchedAt = DateTimeOffset.Now.AddMinutes(-2),
+        LastValidatedAt = DateTimeOffset.Now.AddMinutes(-2)
+    };
+
     private void NotifyConnectionsChanged()
     {
         OnPropertyChanged(nameof(Accounts));
+        OnPropertyChanged(nameof(ChatGptAccounts));
+        OnPropertyChanged(nameof(ApiConnections));
         OnPropertyChanged(nameof(DeepSeekMenuLabel));
+        OnPropertyChanged(nameof(QwenMenuLabel));
         OnPropertyChanged(nameof(CurrentProviderText));
         AccountsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -1418,6 +1886,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ => $"正在切换到 {nickname}…"
         };
 
+    internal static bool ShouldSkipRefresh(
+        AccountCardViewModel account,
+        QuotaRefreshReason reason) =>
+        reason == QuotaRefreshReason.Automatic &&
+        (account.IsQwen ||
+         (!account.IsApiProvider &&
+          QuotaRefreshPolicy.ShouldSkipAutomatic(account.Profile.Quota)));
+
     private sealed class ImmediateProgress<T>(Action<T> report)
         : IProgress<T>
     {
@@ -1429,13 +1905,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         AddAccountCommand.NotifyCanExecuteChanged();
         ImportCurrentCommand.NotifyCanExecuteChanged();
         ConfigureDeepSeekCommand.NotifyCanExecuteChanged();
+        ConfigureQwenCommand.NotifyCanExecuteChanged();
         RefreshAllCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
         SwitchAccountCommand.NotifyCanExecuteChanged();
         RefreshAccountCommand.NotifyCanExecuteChanged();
-        RenameAccountCommand.NotifyCanExecuteChanged();
         DeleteAccountCommand.NotifyCanExecuteChanged();
         TestApiConnectionCommand.NotifyCanExecuteChanged();
+        SelectApiModelCommand.NotifyCanExecuteChanged();
     }
 
     public void Dispose()

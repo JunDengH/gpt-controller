@@ -84,14 +84,24 @@ public sealed class DeepSeekApiClient : IDeepSeekApiClient
 
     public async Task<DeepSeekResponseTestResult> TestResponseAsync(
         string apiKey,
+        CancellationToken cancellationToken = default) =>
+        await TestResponseAsync(
+            apiKey,
+            DeepSeekDefaults.Model,
+            cancellationToken);
+
+    public async Task<DeepSeekResponseTestResult> TestResponseAsync(
+        string apiKey,
+        string model,
         CancellationToken cancellationToken = default)
     {
         ValidateApiKey(apiKey);
+        ValidateModel(model);
         using var request = CreateRequest(HttpMethod.Post, ResponsesEndpoint, apiKey);
         request.Content = new StringContent(
             JsonSerializer.Serialize(
                 new ResponseTestRequest(
-                    DeepSeekDefaults.Model,
+                    model,
                     "Reply with OK only.",
                     16,
                     new ResponseReasoning("none")),
@@ -402,6 +412,14 @@ public sealed class DeepSeekApiClient : IDeepSeekApiClient
         if (apiKey.Any(character => character is < '!' or > '~'))
         {
             throw new ArgumentException("DeepSeek API Key 格式无效。", nameof(apiKey));
+        }
+    }
+
+    private static void ValidateModel(string model)
+    {
+        if (!DeepSeekDefaults.IsSupportedModel(model))
+        {
+            throw new ArgumentException("DeepSeek 模型不受支持。", nameof(model));
         }
     }
 

@@ -2,23 +2,23 @@ using GptController.Models;
 
 namespace GptController.Services;
 
-public interface IDeepSeekApiClient
+public interface IQwenApiClient
 {
-    Task<DeepSeekBalanceSnapshot> GetBalanceAsync(
+    Task<IReadOnlyList<ApiModelDescriptor>> GetModelsAsync(
         string apiKey,
+        QwenRegion region,
+        string? workspaceId,
         CancellationToken cancellationToken = default);
 
-    Task<DeepSeekResponseTestResult> TestResponseAsync(
+    Task<ApiValidationResult> ValidateModelAsync(
         string apiKey,
-        CancellationToken cancellationToken = default);
-
-    Task<DeepSeekResponseTestResult> TestResponseAsync(
-        string apiKey,
+        QwenRegion region,
+        string? workspaceId,
         string model,
         CancellationToken cancellationToken = default);
 }
 
-public enum DeepSeekApiErrorKind
+public enum QwenApiErrorKind
 {
     AuthenticationRequired,
     PaymentRequired,
@@ -26,13 +26,14 @@ public enum DeepSeekApiErrorKind
     Timeout,
     Network,
     RemoteService,
-    InvalidResponse
+    InvalidResponse,
+    IncompatibleModel
 }
 
-public sealed class DeepSeekApiException : Exception
+public sealed class QwenApiException : Exception
 {
-    public DeepSeekApiException(
-        DeepSeekApiErrorKind errorKind,
+    public QwenApiException(
+        QwenApiErrorKind errorKind,
         string message,
         int? statusCode = null)
         : base(message)
@@ -41,6 +42,6 @@ public sealed class DeepSeekApiException : Exception
         StatusCode = statusCode;
     }
 
-    public DeepSeekApiErrorKind ErrorKind { get; }
+    public QwenApiErrorKind ErrorKind { get; }
     public int? StatusCode { get; }
 }

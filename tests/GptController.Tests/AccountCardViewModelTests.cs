@@ -65,12 +65,98 @@ public sealed class AccountCardViewModelTests
     }
 
     [Fact]
+    public void QwenCardUsesCompactRegionAndDynamicModelCount()
+    {
+        var card = new AccountCardViewModel(new QwenConnection
+        {
+            Model = "qwen3-coder-plus",
+            Region = QwenRegion.Beijing,
+            WorkspaceId = "workspace-a",
+            Status = ApiConnectionStatus.Available,
+            Models =
+            [
+                new ApiModelDescriptor { Id = "qwen3-coder-plus" },
+                new ApiModelDescriptor { Id = "qwen3.8-max" }
+            ]
+        });
+
+        Assert.True(card.IsQwen);
+        Assert.True(card.IsApiProvider);
+        Assert.Equal("千问 API", card.ProviderDisplayName);
+        Assert.Equal(string.Empty, card.Email);
+        var presentation = Assert.IsType<ApiConnectionCardPresentation>(card.ApiPresentation);
+        Assert.Equal("北京 · 模型", presentation.PrimaryMetric.Label);
+        Assert.Equal("2", presentation.PrimaryMetric.ValueText);
+        Assert.Equal("qwen3-coder-plus", presentation.Model);
+    }
+
+    [Fact]
+    public void ActiveApiCanBeDeletedThroughRestoreTransactionButActiveOAuthCannot()
+    {
+        var api = new AccountCardViewModel(new QwenConnection
+        {
+            Model = "qwen3-coder-plus",
+            Region = QwenRegion.Virginia,
+            IsActive = true,
+            Models = [new ApiModelDescriptor { Id = "qwen3-coder-plus" }]
+        });
+        var oauth = new AccountCardViewModel(new AccountProfile
+        {
+            AccountId = "oauth-account",
+            Email = "oauth@example.com",
+            Nickname = "OAuth",
+            IsActive = true
+        });
+
+        Assert.True(api.CanDelete);
+        Assert.False(oauth.CanDelete);
+    }
+
+    [Fact]
+    public void DeepSeekCardExposesSelectableModelState()
+    {
+        var card = new AccountCardViewModel(new DeepSeekConnection
+        {
+            Model = DeepSeekDefaults.ProModel
+        });
+
+        Assert.True(card.IsProModel);
+        Assert.False(card.IsFlashModel);
+        Assert.Equal("V4 Pro", card.ApiModelDisplayName);
+        Assert.Contains("复杂编码", card.ApiModelDescription);
+    }
+
+    [Fact]
     public void OAuthCardDoesNotExposeApiPresentation()
     {
         var card = CreateCard(QuotaStatus.Fresh, null);
 
         Assert.Equal(ConnectionCardKind.OAuthAccount, card.CardKind);
         Assert.Null(card.ApiPresentation);
+    }
+
+    [Fact]
+    public void CompanyNameOnlyAppearsForKnownOrganizations()
+    {
+        var organization = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Team",
+            Email = "team@example.cn",
+            AccountId = "team-account",
+            Ownership = AccountOwnership.Organization("org", "示例科技")
+        });
+        var personal = CreateCard(QuotaStatus.Fresh, null);
+        var unnamedOrganization = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Unknown org",
+            Email = "unknown@example.cn",
+            AccountId = "unknown-org",
+            Ownership = AccountOwnership.Organization("org", null)
+        });
+
+        Assert.Equal("示例科技", organization.CompanyDisplayName);
+        Assert.Equal(string.Empty, personal.CompanyDisplayName);
+        Assert.Equal(string.Empty, unnamedOrganization.CompanyDisplayName);
     }
 
     [Theory]

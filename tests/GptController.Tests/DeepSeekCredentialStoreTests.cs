@@ -221,7 +221,7 @@ public sealed class DeepSeekCredentialStoreTests : IDisposable
         Assert.False(factoryCalled);
         Assert.Equal(string.Empty, stdout.ToString());
         Assert.Equal(
-            "Usage: get-token --provider deepseek" + Environment.NewLine,
+            "Usage: get-token --provider deepseek|qwen" + Environment.NewLine,
             stderr.ToString());
     }
 

@@ -4,17 +4,19 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using GptController.Infrastructure;
+using GptController.Models;
 using Tomlyn.Parsing;
 
 namespace GptController.Services;
 
 public sealed class DeepSeekCodexConfigService
 {
-    public const string FlashModel = "deepseek-v4-flash";
-    internal const string ProModel = "deepseek-v4-pro";
-    public const string ProviderId = "gpt_controller_deepseek";
+    public const string FlashModel = DeepSeekDefaults.FlashModel;
+    public const string ProModel = DeepSeekDefaults.ProModel;
+    public const string ProviderId = ApiProviderDefinitions.DeepSeekProviderId;
+    public const string QwenProviderId = ApiProviderDefinitions.QwenProviderId;
 
-    private const int StateSchemaVersion = 2;
+    private const int StateSchemaVersion = 4;
     private static readonly byte[] BackupEntropy =
         Encoding.UTF8.GetBytes("GptController/DeepSeekCodexConfigBackup/v1");
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -24,7 +26,7 @@ public sealed class DeepSeekCodexConfigService
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
-    private static readonly ManagedField[] ManagedFields =
+    private static readonly ManagedField[] LegacyManagedFields =
     [
         new(string.Empty, "model"),
         new(string.Empty, "model_provider"),
@@ -42,6 +44,20 @@ public sealed class DeepSeekCodexConfigService
         new($"model_providers.{ProviderId}.auth", "args"),
         new($"model_providers.{ProviderId}.auth", "timeout_ms"),
         new($"model_providers.{ProviderId}.auth", "refresh_interval_ms")
+    ];
+    private static readonly ManagedField[] ManagedFields =
+    [
+        .. LegacyManagedFields,
+        new($"model_providers.{QwenProviderId}", "name"),
+        new($"model_providers.{QwenProviderId}", "base_url"),
+        new($"model_providers.{QwenProviderId}", "wire_api"),
+        new($"model_providers.{QwenProviderId}", "env_key"),
+        new($"model_providers.{QwenProviderId}", "experimental_bearer_token"),
+        new($"model_providers.{QwenProviderId}", "requires_openai_auth"),
+        new($"model_providers.{QwenProviderId}.auth", "command"),
+        new($"model_providers.{QwenProviderId}.auth", "args"),
+        new($"model_providers.{QwenProviderId}.auth", "timeout_ms"),
+        new($"model_providers.{QwenProviderId}.auth", "refresh_interval_ms")
     ];
 
     private readonly DeepSeekCodexConfigOptions _options;
@@ -67,39 +83,88 @@ public sealed class DeepSeekCodexConfigService
 
         var current = await ReadConfigAsync(cancellationToken);
         ValidateToml(current);
-        var currentHash = HashManagedFields(TomlLineEditor.Parse(current));
+        var currentEditor = TomlLineEditor.Parse(current);
+        var fields = state.SchemaVersion < StateSchemaVersion
+            ? LegacyManagedFields
+            : ManagedFields;
+        var currentHash = HashManagedFields(currentEditor, fields);
         var matchesOriginal = HashEquals(currentHash, state.OriginalManagedHash);
         var matchesApplied = HashEquals(currentHash, state.AppliedManagedHash);
+        var matchesPreviousApplied =
+            state.PreviousAppliedManagedHash is { } previousAppliedHash &&
+            HashEquals(currentHash, previousAppliedHash);
+        var matchesPendingApplied =
+            state.PendingAppliedManagedHash is { } pendingAppliedHash &&
+            HashEquals(currentHash, pendingAppliedHash);
 
-        switch (state.Phase)
+        if (state.Phase == DeepSeekConfigPhase.Applied && matchesApplied)
         {
-            case DeepSeekConfigPhase.Applied when matchesApplied:
-                return new(DeepSeekConfigChangeStatus.Applied, state.BackupFilePath);
+            return await CompleteLegacyStateUpgradeAsync(
+                state,
+                currentEditor,
+                cancellationToken);
+        }
 
-            case DeepSeekConfigPhase.Applying when matchesApplied:
-            case DeepSeekConfigPhase.Restoring when matchesApplied:
-                await WriteStateAsync(
-                    state with
-                    {
-                        Phase = DeepSeekConfigPhase.Applied,
-                        UpdatedAtUtc = DateTimeOffset.UtcNow
-                    },
+        if (state.Phase is DeepSeekConfigPhase.Applying or DeepSeekConfigPhase.Restoring)
+        {
+            if (matchesApplied)
+            {
+                var applied = state with
+                {
+                    Phase = DeepSeekConfigPhase.Applied,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                };
+                await WriteStateAsync(applied, cancellationToken);
+                return await CompleteLegacyStateUpgradeAsync(
+                    applied,
+                    currentEditor,
                     cancellationToken);
-                return new(DeepSeekConfigChangeStatus.Applied, state.BackupFilePath);
+            }
 
-            case DeepSeekConfigPhase.Applying when matchesOriginal:
-            case DeepSeekConfigPhase.Restoring when matchesOriginal:
+            if (matchesOriginal)
+            {
                 DeleteStateReliably();
                 return new(DeepSeekConfigChangeStatus.NotApplied, state.BackupFilePath);
-
-            default:
-                return new(DeepSeekConfigChangeStatus.Conflict, state.BackupFilePath);
+            }
         }
+
+        if (state.Phase == DeepSeekConfigPhase.Updating &&
+            (matchesPendingApplied || matchesPreviousApplied))
+        {
+            var applied = state with
+            {
+                Phase = DeepSeekConfigPhase.Applied,
+                AppliedManagedHash = matchesPendingApplied
+                    ? state.PendingAppliedManagedHash!
+                    : state.PreviousAppliedManagedHash!,
+                PreviousAppliedManagedHash = null,
+                PendingAppliedManagedHash = null,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            await WriteStateAsync(applied, cancellationToken);
+            return await CompleteLegacyStateUpgradeAsync(
+                applied,
+                currentEditor,
+                cancellationToken);
+        }
+
+        return new(DeepSeekConfigChangeStatus.Conflict, state.BackupFilePath);
     }
 
+    public Task<DeepSeekConfigChangeResult> ApplyAsync(
+        CancellationToken cancellationToken = default) =>
+        ApplyAsync(ApiProviderDefinitions.ForDeepSeek(FlashModel), cancellationToken);
+
+    public Task<DeepSeekConfigChangeResult> ApplyAsync(
+        string model,
+        CancellationToken cancellationToken = default) =>
+        ApplyAsync(ApiProviderDefinitions.ForDeepSeek(model), cancellationToken);
+
     public async Task<DeepSeekConfigChangeResult> ApplyAsync(
+        ApiProviderDefinition provider,
         CancellationToken cancellationToken = default)
     {
+        ValidateProvider(provider);
         var recovery = await RecoverInterruptedChangeAsync(cancellationToken);
         if (recovery.Status == DeepSeekConfigChangeStatus.Conflict)
         {
@@ -109,39 +174,50 @@ public sealed class DeepSeekCodexConfigService
         var current = await ReadConfigAsync(cancellationToken);
         ValidateToml(current);
         var currentEditor = TomlLineEditor.Parse(current);
-
         var existingState = await ReadStateAsync(cancellationToken);
         if (existingState is not null)
         {
-            var currentHash = HashManagedFields(currentEditor);
-            if (!HashEquals(currentHash, existingState.AppliedManagedHash))
+            if (!HashEquals(HashManagedFields(currentEditor), existingState.AppliedManagedHash))
             {
                 return new(DeepSeekConfigChangeStatus.Conflict, existingState.BackupFilePath);
             }
 
-            await WriteModelCatalogAsync(cancellationToken);
-            return new(DeepSeekConfigChangeStatus.AlreadyApplied, existingState.BackupFilePath);
+            if (!IsSelectedProvider(currentEditor, provider))
+            {
+                return await UpdateAppliedProviderCoreAsync(
+                    existingState,
+                    currentEditor,
+                    provider,
+                    cancellationToken);
+            }
+
+            await WriteModelCatalogAsync(provider, cancellationToken);
+            return new(
+                DeepSeekConfigChangeStatus.AlreadyApplied,
+                existingState.BackupFilePath,
+                provider.ProviderId);
         }
 
         var backupPath = await CreateBackupAsync(current, cancellationToken);
         var originalHash = HashManagedFields(currentEditor);
-        ApplyManagedValues(currentEditor);
+        ApplyManagedValues(currentEditor, provider);
         var updated = currentEditor.Render();
         ValidateToml(updated);
         var appliedHash = HashManagedFields(currentEditor);
-
         var state = new DeepSeekCodexConfigState(
             StateSchemaVersion,
             DeepSeekConfigPhase.Applying,
             backupPath,
             originalHash,
             appliedHash,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            ProviderId: provider.ProviderId,
+            Model: provider.Model);
 
         var wroteConfig = false;
         try
         {
-            await WriteModelCatalogAsync(cancellationToken);
+            await WriteModelCatalogAsync(provider, cancellationToken);
             await WriteStateAsync(state, cancellationToken);
             await AtomicFile.WriteAllTextAsync(_options.ConfigFilePath, updated, cancellationToken);
             wroteConfig = true;
@@ -157,7 +233,10 @@ public sealed class DeepSeekCodexConfigService
         {
             if (wroteConfig)
             {
-                await AtomicFile.WriteAllTextAsync(_options.ConfigFilePath, current, CancellationToken.None);
+                await AtomicFile.WriteAllTextAsync(
+                    _options.ConfigFilePath,
+                    current,
+                    CancellationToken.None);
             }
 
             if (!wroteConfig || string.Equals(
@@ -171,7 +250,53 @@ public sealed class DeepSeekCodexConfigService
             throw;
         }
 
-        return new(DeepSeekConfigChangeStatus.Applied, backupPath);
+        return new(DeepSeekConfigChangeStatus.Applied, backupPath, provider.ProviderId);
+    }
+
+    public Task<DeepSeekConfigChangeResult> ChangeModelAsync(
+        string model,
+        CancellationToken cancellationToken = default) =>
+        ChangeProviderAsync(ApiProviderDefinitions.ForDeepSeek(model), cancellationToken);
+
+    public async Task<DeepSeekConfigChangeResult> ChangeProviderAsync(
+        ApiProviderDefinition provider,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProvider(provider);
+        var recovery = await RecoverInterruptedChangeAsync(cancellationToken);
+        if (recovery.Status == DeepSeekConfigChangeStatus.Conflict)
+        {
+            return recovery;
+        }
+
+        var state = await ReadStateAsync(cancellationToken);
+        if (state is null)
+        {
+            return new(DeepSeekConfigChangeStatus.NotApplied);
+        }
+
+        var current = await ReadConfigAsync(cancellationToken);
+        ValidateToml(current);
+        var editor = TomlLineEditor.Parse(current);
+        if (!HashEquals(HashManagedFields(editor), state.AppliedManagedHash))
+        {
+            return new(DeepSeekConfigChangeStatus.Conflict, state.BackupFilePath);
+        }
+
+        if (IsSelectedProvider(editor, provider))
+        {
+            await WriteModelCatalogAsync(provider, cancellationToken);
+            return new(
+                DeepSeekConfigChangeStatus.AlreadyApplied,
+                state.BackupFilePath,
+                provider.ProviderId);
+        }
+
+        return await UpdateAppliedProviderCoreAsync(
+            state,
+            editor,
+            provider,
+            cancellationToken);
     }
 
     public async Task<DeepSeekConfigChangeResult> RestoreAsync(
@@ -241,10 +366,16 @@ public sealed class DeepSeekCodexConfigService
         var original = await ReadBackupAsync(state.BackupFilePath, cancellationToken);
         ValidateToml(original);
         ValidateToml(current);
-        var restored = RestoreManagedFields(TomlLineEditor.Parse(current), original);
+        var restoreFields = state.SchemaVersion < StateSchemaVersion
+            ? LegacyManagedFields
+            : ManagedFields;
+        var restored = RestoreManagedFields(
+            TomlLineEditor.Parse(current),
+            original,
+            restoreFields);
         ValidateToml(restored);
         if (!string.Equals(
-                HashManagedFields(TomlLineEditor.Parse(restored)),
+                HashManagedFields(TomlLineEditor.Parse(restored), restoreFields),
                 state.OriginalManagedHash,
                 StringComparison.Ordinal))
         {
@@ -266,10 +397,12 @@ public sealed class DeepSeekCodexConfigService
 
     private static string RestoreManagedFields(
         TomlLineEditor currentEditor,
-        string original)
+        string original,
+        IReadOnlyList<ManagedField>? fields = null)
     {
+        fields ??= ManagedFields;
         var originalEditor = TomlLineEditor.Parse(original);
-        foreach (var field in ManagedFields)
+        foreach (var field in fields)
         {
             var originalValue = originalEditor.GetValue(field.Section, field.Key);
             if (originalValue is null)
@@ -282,33 +415,141 @@ public sealed class DeepSeekCodexConfigService
             }
         }
 
-        var authSection = $"model_providers.{ProviderId}.auth";
-        var providerSection = $"model_providers.{ProviderId}";
-        if (!originalEditor.HasSection(authSection))
+        foreach (var managedProviderId in new[] { ProviderId, QwenProviderId }.Where(id =>
+                     fields.Any(field => field.Section.StartsWith(
+                         $"model_providers.{id}",
+                         StringComparison.Ordinal))))
         {
-            currentEditor.RemoveSectionIfEmpty(authSection);
-        }
+            var authSection = $"model_providers.{managedProviderId}.auth";
+            var providerSection = $"model_providers.{managedProviderId}";
+            if (!originalEditor.HasSection(authSection))
+            {
+                currentEditor.RemoveSectionIfEmpty(authSection);
+            }
 
-        if (!originalEditor.HasSection(providerSection))
-        {
-            currentEditor.RemoveSectionIfEmpty(providerSection);
+            if (!originalEditor.HasSection(providerSection))
+            {
+                currentEditor.RemoveSectionIfEmpty(providerSection);
+            }
         }
 
         return currentEditor.Render();
     }
 
-    private void ApplyManagedValues(TomlLineEditor editor)
+    private async Task<DeepSeekConfigChangeResult> UpdateAppliedProviderCoreAsync(
+        DeepSeekCodexConfigState state,
+        TomlLineEditor currentEditor,
+        ApiProviderDefinition provider,
+        CancellationToken cancellationToken)
     {
-        editor.Set(string.Empty, "model", Quote(FlashModel));
-        editor.Set(string.Empty, "model_provider", Quote(ProviderId));
+        var original = currentEditor.Render();
+        var previousHash = state.AppliedManagedHash;
+        ApplyManagedValues(currentEditor, provider);
+        var updated = currentEditor.Render();
+        ValidateToml(updated);
+        var pendingHash = HashManagedFields(currentEditor);
+        var updatingState = state with
+        {
+            SchemaVersion = StateSchemaVersion,
+            Phase = DeepSeekConfigPhase.Updating,
+            PreviousAppliedManagedHash = previousHash,
+            PendingAppliedManagedHash = pendingHash,
+            ProviderId = provider.ProviderId,
+            Model = provider.Model,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        var wroteConfig = false;
+        try
+        {
+            await WriteModelCatalogAsync(provider, cancellationToken);
+            await WriteStateAsync(updatingState, cancellationToken);
+            await AtomicFile.WriteAllTextAsync(
+                _options.ConfigFilePath,
+                updated,
+                cancellationToken);
+            wroteConfig = true;
+            await WriteStateAsync(
+                updatingState with
+                {
+                    Phase = DeepSeekConfigPhase.Applied,
+                    AppliedManagedHash = pendingHash,
+                    PreviousAppliedManagedHash = null,
+                    PendingAppliedManagedHash = null,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                },
+                cancellationToken);
+        }
+        catch
+        {
+            if (wroteConfig)
+            {
+                try
+                {
+                    await AtomicFile.WriteAllTextAsync(
+                        _options.ConfigFilePath,
+                        original,
+                        CancellationToken.None);
+                    await WriteStateAsync(
+                        state with
+                        {
+                            SchemaVersion = StateSchemaVersion,
+                            Phase = DeepSeekConfigPhase.Applied,
+                            PreviousAppliedManagedHash = null,
+                            PendingAppliedManagedHash = null,
+                            UpdatedAtUtc = DateTimeOffset.UtcNow
+                        },
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // The updating marker lets startup recovery identify the
+                    // complete managed-field generation left on disk.
+                }
+            }
+
+            throw;
+        }
+
+        return new(
+            DeepSeekConfigChangeStatus.Applied,
+            state.BackupFilePath,
+            provider.ProviderId);
+    }
+
+    private void ApplyManagedValues(
+        TomlLineEditor editor,
+        ApiProviderDefinition provider)
+    {
+        editor.Set(string.Empty, "model", Quote(provider.Model));
+        editor.Set(string.Empty, "model_provider", Quote(provider.ProviderId));
         editor.Set(string.Empty, "preferred_auth_method", Quote("apikey"));
         editor.Set(string.Empty, "forced_login_method", Quote("api"));
-        editor.Set(string.Empty, "model_reasoning_effort", Quote("high"));
-        editor.Set(string.Empty, "model_catalog_json", Quote(Path.GetFullPath(_options.ModelCatalogFilePath)));
+        if (provider.SupportsReasoning)
+        {
+            editor.Set(string.Empty, "model_reasoning_effort", Quote("high"));
+        }
+        else
+        {
+            editor.Remove(string.Empty, "model_reasoning_effort");
+        }
 
-        var providerSection = $"model_providers.{ProviderId}";
-        editor.Set(providerSection, "name", Quote("DeepSeek"));
-        editor.Set(providerSection, "base_url", Quote("https://api.deepseek.com/"));
+        editor.Set(
+            string.Empty,
+            "model_catalog_json",
+            Quote(Path.GetFullPath(_options.ModelCatalogFilePath)));
+
+        var inactiveProviderId = string.Equals(
+            provider.ProviderId,
+            ProviderId,
+            StringComparison.Ordinal)
+            ? QwenProviderId
+            : ProviderId;
+        RemoveProviderValues(editor, inactiveProviderId);
+
+        var providerSection = $"model_providers.{provider.ProviderId}";
+        editor.Set(providerSection, "name", Quote(provider.DisplayName));
+        editor.Set(providerSection, "base_url", Quote(provider.BaseUrl.AbsoluteUri));
         editor.Set(providerSection, "wire_api", Quote("responses"));
         editor.Remove(providerSection, "env_key");
         editor.Remove(providerSection, "experimental_bearer_token");
@@ -316,10 +557,43 @@ public sealed class DeepSeekCodexConfigService
 
         var authSection = $"{providerSection}.auth";
         editor.Set(authSection, "command", Quote(Path.GetFullPath(_options.CredentialHelperPath)));
-        editor.Set(authSection, "args", $"[{Quote("get-token")}, {Quote("--provider")}, {Quote("deepseek")}]");
+        editor.Set(
+            authSection,
+            "args",
+            $"[{Quote("get-token")}, {Quote("--provider")}, {Quote(provider.CredentialProvider)}]");
         editor.Set(authSection, "timeout_ms", "5000");
         editor.Set(authSection, "refresh_interval_ms", "0");
     }
+
+    private static void RemoveProviderValues(TomlLineEditor editor, string providerId)
+    {
+        foreach (var field in ManagedFields.Where(item =>
+                     item.Section.StartsWith(
+                         $"model_providers.{providerId}",
+                         StringComparison.Ordinal)))
+        {
+            editor.Remove(field.Section, field.Key);
+        }
+
+        editor.RemoveSectionIfEmpty($"model_providers.{providerId}.auth");
+        editor.RemoveSectionIfEmpty($"model_providers.{providerId}");
+    }
+
+    private static bool IsSelectedProvider(
+        TomlLineEditor editor,
+        ApiProviderDefinition provider) =>
+        string.Equals(
+            editor.GetValue(string.Empty, "model"),
+            Quote(provider.Model),
+            StringComparison.Ordinal) &&
+        string.Equals(
+            editor.GetValue(string.Empty, "model_provider"),
+            Quote(provider.ProviderId),
+            StringComparison.Ordinal) &&
+        string.Equals(
+            editor.GetValue($"model_providers.{provider.ProviderId}", "base_url"),
+            Quote(provider.BaseUrl.AbsoluteUri),
+            StringComparison.Ordinal);
 
     private async Task<string> ReadConfigAsync(CancellationToken cancellationToken)
     {
@@ -343,13 +617,18 @@ public sealed class DeepSeekCodexConfigService
             stream,
             JsonOptions,
             cancellationToken);
-        if (state is null || state.SchemaVersion != StateSchemaVersion ||
+        if (state is null || state.SchemaVersion is < 2 or > StateSchemaVersion ||
             !Enum.IsDefined(state.Phase) ||
             string.IsNullOrWhiteSpace(state.BackupFilePath) ||
             !IsSha256(state.OriginalManagedHash) ||
-            !IsSha256(state.AppliedManagedHash))
+            !IsSha256(state.AppliedManagedHash) ||
+            (state.SchemaVersion >= StateSchemaVersion &&
+             (!IsManagedProviderId(state.ProviderId) || string.IsNullOrWhiteSpace(state.Model))) ||
+            (state.Phase == DeepSeekConfigPhase.Updating &&
+             (!IsSha256(state.PreviousAppliedManagedHash) ||
+              !IsSha256(state.PendingAppliedManagedHash))))
         {
-            throw new InvalidDataException("The DeepSeek Codex configuration state is invalid.");
+            throw new InvalidDataException("The Codex API provider configuration state is invalid.");
         }
 
         return state;
@@ -384,9 +663,42 @@ public sealed class DeepSeekCodexConfigService
         }
     }
 
-    private static bool IsSha256(string value) =>
-        value.Length == 64 && value.All(static character =>
+    private static bool IsSha256(string? value) =>
+        value is { Length: 64 } && value.All(static character =>
             character is >= '0' and <= '9' or >= 'A' and <= 'F');
+
+    private static void ValidateProvider(ApiProviderDefinition provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        if (!IsManagedProviderId(provider.ProviderId) ||
+            provider.Provider is not (ConnectionProvider.DeepSeek or ConnectionProvider.Qwen) ||
+            string.IsNullOrWhiteSpace(provider.Model) ||
+            provider.BaseUrl.Scheme != Uri.UriSchemeHttps ||
+            string.IsNullOrWhiteSpace(provider.CredentialProvider) ||
+            !provider.Models.Any(item => string.Equals(
+                item.Id,
+                provider.Model,
+                StringComparison.Ordinal)))
+        {
+            throw new ArgumentException("The API provider definition is invalid.", nameof(provider));
+        }
+
+        if (provider.Provider == ConnectionProvider.DeepSeek &&
+            !DeepSeekDefaults.IsSupportedModel(provider.Model))
+        {
+            throw new ArgumentException("DeepSeek model is unsupported.", nameof(provider));
+        }
+
+        if (provider.Provider == ConnectionProvider.Qwen &&
+            !provider.Model.StartsWith("qwen", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Qwen model is unsupported.", nameof(provider));
+        }
+    }
+
+    private static bool IsManagedProviderId(string? providerId) =>
+        string.Equals(providerId, ProviderId, StringComparison.Ordinal) ||
+        string.Equals(providerId, QwenProviderId, StringComparison.Ordinal);
 
     private static bool HashEquals(string left, string right) =>
         CryptographicOperations.FixedTimeEquals(
@@ -454,8 +766,108 @@ public sealed class DeepSeekCodexConfigService
         }
     }
 
-    private async Task WriteModelCatalogAsync(CancellationToken cancellationToken)
+    private async Task<DeepSeekConfigChangeResult> CompleteLegacyStateUpgradeAsync(
+        DeepSeekCodexConfigState state,
+        TomlLineEditor currentEditor,
+        CancellationToken cancellationToken)
     {
+        if (state.SchemaVersion >= StateSchemaVersion)
+        {
+            return new(
+                DeepSeekConfigChangeStatus.Applied,
+                state.BackupFilePath,
+                state.ProviderId);
+        }
+
+        var original = await ReadBackupAsync(state.BackupFilePath, cancellationToken);
+        ValidateToml(original);
+        var model = Unquote(currentEditor.GetValue(string.Empty, "model"))
+            ?? DeepSeekDefaults.Model;
+        var upgraded = state with
+        {
+            SchemaVersion = StateSchemaVersion,
+            Phase = DeepSeekConfigPhase.Applied,
+            OriginalManagedHash = HashManagedFields(TomlLineEditor.Parse(original)),
+            AppliedManagedHash = HashManagedFields(currentEditor),
+            PreviousAppliedManagedHash = null,
+            PendingAppliedManagedHash = null,
+            ProviderId = ProviderId,
+            Model = model,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+        await WriteStateAsync(upgraded, cancellationToken);
+        return new(
+            DeepSeekConfigChangeStatus.Applied,
+            upgraded.BackupFilePath,
+            upgraded.ProviderId);
+    }
+
+    private static string? Unquote(string? value)
+    {
+        if (value is not { Length: >= 2 } || value[0] != '"' || value[^1] != '"')
+        {
+            return null;
+        }
+
+        return value[1..^1];
+    }
+
+    private async Task WriteModelCatalogAsync(
+        ApiProviderDefinition provider,
+        CancellationToken cancellationToken)
+    {
+        if (provider.Provider == ConnectionProvider.Qwen)
+        {
+            var models = provider.Models
+                .DistinctBy(item => item.Id, StringComparer.Ordinal)
+                .Select((item, index) => (object)new
+                {
+                    slug = item.Id,
+                    prefer_websockets = false,
+                    support_verbosity = false,
+                    default_verbosity = "low",
+                    apply_patch_tool_type = "function",
+                    web_search_tool_type = "text",
+                    input_modalities = new[] { "text" },
+                    supports_image_detail_original = false,
+                    truncation_policy = new { mode = "tokens", limit = 8_000 },
+                    supports_parallel_tool_calls = false,
+                    multi_agent_version = "v2",
+                    use_responses_lite = false,
+                    include_skills_usage_instructions = false,
+                    context_window = provider.ConservativeContextWindow,
+                    max_context_window = provider.ConservativeContextWindow,
+                    effective_context_window_percent = 90,
+                    comp_hash = "3000",
+                    reasoning_summary_format = "experimental",
+                    default_reasoning_summary = "none",
+                    display_name = item.EffectiveDisplayName,
+                    description = "Qwen model discovered from Alibaba Cloud Model Studio.",
+                    default_reasoning_level = "medium",
+                    supported_reasoning_levels = new object[]
+                    {
+                        new { effort = "medium", description = "Provider-compatible default" }
+                    },
+                    base_instructions = "You are Codex, an agentic coding assistant. Work carefully in the user's repository, use function tools when needed, preserve unrelated changes, and verify your work.",
+                    shell_type = "shell_command",
+                    visibility = "list",
+                    minimal_client_version = "0.146.0",
+                    supported_in_api = true,
+                    priority = index + 1,
+                    experimental_supported_tools = Array.Empty<string>(),
+                    supports_search_tool = false,
+                    supports_reasoning_summaries = false
+                })
+                .ToArray();
+            var qwenJson = JsonSerializer.Serialize(new { models }, JsonOptions) +
+                           Environment.NewLine;
+            await AtomicFile.WriteAllTextAsync(
+                _options.ModelCatalogFilePath,
+                qwenJson,
+                cancellationToken);
+            return;
+        }
+
         var catalog = new
         {
             models = new object[]
@@ -499,6 +911,46 @@ public sealed class DeepSeekCodexConfigService
                     experimental_supported_tools = Array.Empty<string>(),
                     supports_search_tool = true,
                     supports_reasoning_summaries = true
+                },
+                new
+                {
+                    slug = ProModel,
+                    prefer_websockets = false,
+                    support_verbosity = true,
+                    default_verbosity = "low",
+                    apply_patch_tool_type = "freeform",
+                    web_search_tool_type = "text",
+                    input_modalities = new[] { "text" },
+                    supports_image_detail_original = false,
+                    truncation_policy = new { mode = "tokens", limit = 10_000 },
+                    supports_parallel_tool_calls = true,
+                    multi_agent_version = "v2",
+                    use_responses_lite = false,
+                    include_skills_usage_instructions = false,
+                    context_window = 1_048_576,
+                    max_context_window = 1_048_576,
+                    effective_context_window_percent = 95,
+                    comp_hash = "3000",
+                    reasoning_summary_format = "experimental",
+                    default_reasoning_summary = "none",
+                    display_name = "DeepSeek-V4-Pro",
+                    description = "Higher-capability reasoning and agentic coding model.",
+                    default_reasoning_level = "high",
+                    supported_reasoning_levels = new object[]
+                    {
+                        new { effort = "low", description = "Fast responses with lighter reasoning" },
+                        new { effort = "high", description = "Extra high reasoning depth for complex problems" },
+                        new { effort = "max", description = "Maximum reasoning depth for the hardest problems" }
+                    },
+                    base_instructions = "You are Codex, an agentic coding assistant. Work carefully in the user's repository, use tools when needed, preserve unrelated changes, and verify your work.",
+                    shell_type = "shell_command",
+                    visibility = "list",
+                    minimal_client_version = "0.146.0",
+                    supported_in_api = true,
+                    priority = 2,
+                    experimental_supported_tools = Array.Empty<string>(),
+                    supports_search_tool = true,
+                    supports_reasoning_summaries = true
                 }
             }
         };
@@ -507,10 +959,15 @@ public sealed class DeepSeekCodexConfigService
         await AtomicFile.WriteAllTextAsync(_options.ModelCatalogFilePath, json, cancellationToken);
     }
 
-    private static string HashManagedFields(TomlLineEditor editor)
+    private static string HashManagedFields(TomlLineEditor editor) =>
+        HashManagedFields(editor, ManagedFields);
+
+    private static string HashManagedFields(
+        TomlLineEditor editor,
+        IReadOnlyList<ManagedField> fields)
     {
         var builder = new StringBuilder();
-        foreach (var field in ManagedFields)
+        foreach (var field in fields)
         {
             builder.Append(field.Section)
                 .Append('\u001f')
@@ -563,13 +1020,18 @@ public sealed class DeepSeekCodexConfigService
         string BackupFilePath,
         string OriginalManagedHash,
         string AppliedManagedHash,
-        DateTimeOffset UpdatedAtUtc);
+        DateTimeOffset UpdatedAtUtc,
+        string? PreviousAppliedManagedHash = null,
+        string? PendingAppliedManagedHash = null,
+        string? ProviderId = null,
+        string? Model = null);
 
     private enum DeepSeekConfigPhase
     {
         Applying,
         Applied,
-        Restoring
+        Restoring,
+        Updating
     }
 
     private sealed class TomlLineEditor
@@ -848,4 +1310,5 @@ public enum DeepSeekConfigChangeStatus
 
 public sealed record DeepSeekConfigChangeResult(
     DeepSeekConfigChangeStatus Status,
-    string? BackupFilePath = null);
+    string? BackupFilePath = null,
+    string? ProviderId = null);

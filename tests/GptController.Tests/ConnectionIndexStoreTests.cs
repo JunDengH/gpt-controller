@@ -101,6 +101,61 @@ public sealed class ConnectionIndexStoreTests
     }
 
     [Fact]
+    public async Task SaveProjectionAsync_ProjectsActiveQwenAlongsideDeepSeek()
+    {
+        await using var harness = IndexHarness.Create();
+        var deepSeek = new DeepSeekConnection { KeyLastFour = "ABCD" };
+        var qwen = new QwenConnection
+        {
+            Model = "qwen3-coder-plus",
+            Region = QwenRegion.Virginia,
+            IsActive = true,
+            Models = [new ApiModelDescriptor { Id = "qwen3-coder-plus" }]
+        };
+
+        var saved = await harness.Store.SaveProjectionAsync([], deepSeek, qwen);
+
+        Assert.Equal(ConnectionProvider.Qwen, saved.ActiveConnection?.Provider);
+        Assert.Equal(QwenConnection.FixedId, saved.ActiveConnection?.ConnectionId);
+        Assert.Collection(
+            saved.ApiConnections,
+            item => Assert.Equal(ConnectionProvider.DeepSeek, item.Provider),
+            item => Assert.Equal(ConnectionProvider.Qwen, item.Provider));
+    }
+
+    [Fact]
+    public async Task LoadAsync_MigratesV1DeepSeekProjectionToApiCollection()
+    {
+        await using var harness = IndexHarness.Create();
+        await harness.WriteIndexAsync(new ConnectionIndex
+        {
+            SchemaVersion = 1,
+            DeepSeekConnection = new DeepSeekConnection
+            {
+                KeyLastFour = "ABCD",
+                IsActive = true
+            },
+            ActiveConnection = new ActiveConnectionRef
+            {
+                Provider = ConnectionProvider.DeepSeek,
+                ConnectionId = DeepSeekConnection.FixedId
+            }
+        });
+
+        var migrated = await harness.Store.LoadAsync();
+
+        Assert.NotNull(migrated);
+        Assert.Equal(ConnectionIndex.CurrentSchemaVersion, migrated.SchemaVersion);
+        var api = Assert.Single(migrated.ApiConnections);
+        Assert.Equal(ConnectionProvider.DeepSeek, api.Provider);
+        Assert.True(api.IsActive);
+        Assert.Contains(
+            "\"schemaVersion\": 2",
+            await File.ReadAllTextAsync(harness.Paths.ConnectionIndexFile),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task LoadAsync_RejectsUnsupportedSchema()
     {
         await using var harness = IndexHarness.Create();
