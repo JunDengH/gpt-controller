@@ -60,8 +60,10 @@ interoperability, credential safety and regression coverage.**
 
 - Show five-hour and weekly rate-limit percentages, progress, independent reset times,
   and stale-data status side by side.
-- Display Free, Plus, Pro 5x, Pro 20x, Team, and Business plans. Team and Business show
-  the current organization name; other plans display "Personal account."
+- Display Free, Plus, Pro 5x, Pro 20x, Team, Business, Enterprise, and Edu plans.
+  Workspace plans show the organization for the exact current account, fall back to
+  "Organization name unavailable" when it cannot be confirmed, and label personal
+  accounts as "Personal account."
 - Show the DeepSeek CNY balance and provide an explicitly confirmed minimal Responses
   test.
 - Show the current connection and status in the main window; expose the current
@@ -84,6 +86,12 @@ Saved account profiles are stored in:
 ```text
 %LOCALAPPDATA%\GptController
 ```
+
+When uninstalling through the installer, the application first restores the Codex
+configuration that existed before GPT Controller took ownership. If a concurrent
+switch, external configuration conflict, or incomplete backup makes restoration
+unsafe, uninstall stops and preserves the application files instead of leaving a
+provider that points to a deleted credential helper.
 
 ChatGPT, DeepSeek, and Qwen credential files are encrypted with DPAPI `CurrentUser`.
 Metadata (email, plan, organization name, balance, rate limits, and model cache) is
@@ -195,10 +203,14 @@ Plan mapping:
 | `prolite`, `pro_lite`, `pro-lite` | Pro 5x |
 | `pro` | Pro 20x |
 | `team` | Team |
-| `business` | Business |
+| `business`, `chatgpt_business`, `self_serve_business*` | Business |
+| `enterprise`, `chatgpt_enterprise`, `hc`, `ent26`, `enterprise_cbp_*` | Enterprise |
+| `education`, `edu`, `chatgpt_edu` | Edu |
 
-Unknown plans are not guessed. After a network or protocol failure, the last successful
-data is retained and marked as stale.
+Unknown plans are not guessed. Workspace names prefer the official app-server's current
+session and are matched only to the exact current account ID; older app-server versions
+fall back to token claims and the cache for that same account. After a network or
+protocol failure, the last successful data is retained and marked as stale.
 
 ## License
 

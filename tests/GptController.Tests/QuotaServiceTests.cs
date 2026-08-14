@@ -117,6 +117,29 @@ public sealed class QuotaServiceTests
         Assert.Equal(0, harness.Factory.ActiveSessions);
     }
 
+    [Fact]
+    public async Task SparseWorkspaceRefreshDoesNotEraseCachedOrganizationName()
+    {
+        await using var harness = await QuotaHarness.CreateAsync(
+            isActive: false,
+            accessTokenExpiration: DateTimeOffset.UtcNow.AddMinutes(10));
+        var workspace = harness.Profile with
+        {
+            MembershipPlan = MembershipPlan.Business,
+            Ownership = AccountOwnership.Organization(
+                harness.Profile.AccountId,
+                "已缓存组织")
+        };
+        workspace = await harness.Vault.UpsertProfileAsync(workspace);
+        harness.Factory.PlanType = "business";
+
+        var updated = await harness.Service.RefreshAsync(workspace.Id);
+
+        Assert.Equal(MembershipPlan.Business, updated.MembershipPlan);
+        Assert.Equal(AccountOwnershipKind.Organization, updated.Ownership.Kind);
+        Assert.Equal("已缓存组织", updated.Ownership.DisplayName);
+    }
+
     [Theory]
     [MemberData(nameof(RemoteFailureCases))]
     public async Task RemoteFailuresUseStrictAuthenticationClassification(
@@ -315,6 +338,7 @@ public sealed class QuotaServiceTests
         public Exception? AccountException { get; set; }
         public TimeSpan ReadDelay { get; set; }
         public bool BlockReads { get; set; }
+        public string PlanType { get; set; } = "plus";
         public TaskCompletionSource ReadStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -336,6 +360,7 @@ public sealed class QuotaServiceTests
             return new StubAppServerClient(
                 accountId,
                 AccountException,
+                PlanType,
                 ReadDelay,
                 BlockReads,
                 ReadStarted,
@@ -362,6 +387,7 @@ public sealed class QuotaServiceTests
     private sealed class StubAppServerClient(
         string accountId,
         Exception? accountException,
+        string planType,
         TimeSpan readDelay,
         bool blockReads,
         TaskCompletionSource readStarted,
@@ -393,27 +419,26 @@ public sealed class QuotaServiceTests
 
             return new AccountReadMetadata(
                 $"{accountId}@example.com",
-                "plus",
+                planType,
                 accountId);
         }
 
         public Task<JsonElement> ReadRateLimitsAsync(
             CancellationToken cancellationToken = default)
         {
-            using var document = JsonDocument.Parse(
-                """
+            return Task.FromResult(JsonSerializer.SerializeToElement(new
+            {
+                rateLimits = new
                 {
-                  "rateLimits": {
-                    "planType": "plus",
-                    "primary": {
-                      "usedPercent": 25,
-                      "windowDurationMins": 10080,
-                      "resetsAt": 1785200000
+                    planType,
+                    primary = new
+                    {
+                        usedPercent = 25,
+                        windowDurationMins = 10080,
+                        resetsAt = 1785200000
                     }
-                  }
                 }
-                """);
-            return Task.FromResult(document.RootElement.Clone());
+            }));
         }
 
         public Task<LoginStartResult> StartChatGptLoginAsync(

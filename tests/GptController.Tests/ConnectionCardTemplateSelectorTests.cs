@@ -169,7 +169,7 @@ public sealed class ConnectionCardTemplateSelectorTests
         var template = xaml[start..(end + endTag.Length)];
 
         Assert.Contains(
-            "AutomationProperties.Name=\"{Binding Email}\"",
+            "AutomationProperties.Name=\"{Binding AccountIdentityDisplayName}\"",
             template,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -177,6 +177,11 @@ public sealed class ConnectionCardTemplateSelectorTests
             template,
             StringComparison.Ordinal);
         Assert.Contains("CompanyDisplayName", template, StringComparison.Ordinal);
+        Assert.Contains(
+            "ToolTip=\"{Binding AccountIdentityDisplayName, Mode=OneWay}\"",
+            template,
+            StringComparison.Ordinal);
+        Assert.Contains("AccountIdentitySeparator", template, StringComparison.Ordinal);
         Assert.DoesNotContain("OwnershipDisplayName", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"套餐\"", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"归属\"", template, StringComparison.Ordinal);

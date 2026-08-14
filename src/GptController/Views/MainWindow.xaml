@@ -591,7 +591,7 @@
                                                             BorderThickness="1"
                                                             CornerRadius="7"
                                                             Effect="{StaticResource CardShadow}"
-                                                            AutomationProperties.Name="{Binding Email}"
+                                                            AutomationProperties.Name="{Binding AccountIdentityDisplayName}"
                                                             AutomationProperties.HelpText="{Binding ProviderDisplayName, StringFormat=账号类型：{0}}">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
@@ -644,9 +644,9 @@
                                                                            VerticalAlignment="Center"
                                                                            FontSize="12.5"
                                                                            TextTrimming="CharacterEllipsis"
-                                                                           ToolTip="{Binding Email}">
+                                                                           ToolTip="{Binding AccountIdentityDisplayName, Mode=OneWay}">
                                                                     <Run FontWeight="SemiBold" Text="{Binding Email, Mode=OneWay}" />
-                                                                    <Run Text="  " />
+                                                                    <Run Text="{Binding AccountIdentitySeparator, Mode=OneWay}" />
                                                                     <Run Foreground="{StaticResource TextMutedBrush}"
                                                                          FontSize="11.5"
                                                                          Text="{Binding CompanyDisplayName, Mode=OneWay}" />

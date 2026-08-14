@@ -136,7 +136,7 @@ public sealed class AccountCardViewModelTests
     }
 
     [Fact]
-    public void CompanyNameOnlyAppearsForKnownOrganizations()
+    public void OAuthIdentityAlwaysIncludesAnUnambiguousOwnershipLabel()
     {
         var organization = new AccountCardViewModel(new AccountProfile
         {
@@ -155,8 +155,52 @@ public sealed class AccountCardViewModelTests
         });
 
         Assert.Equal("示例科技", organization.CompanyDisplayName);
-        Assert.Equal(string.Empty, personal.CompanyDisplayName);
-        Assert.Equal(string.Empty, unnamedOrganization.CompanyDisplayName);
+        Assert.Equal("个人账号", personal.CompanyDisplayName);
+        Assert.Equal("组织名称未知", unnamedOrganization.CompanyDisplayName);
+        Assert.Equal(
+            "team@example.cn · 示例科技",
+            organization.AccountIdentityDisplayName);
+        Assert.Equal(
+            "test@example.com · 个人账号",
+            personal.AccountIdentityDisplayName);
+        Assert.Equal(
+            "unknown@example.cn · 组织名称未知",
+            unnamedOrganization.AccountIdentityDisplayName);
+    }
+
+    [Fact]
+    public void OAuthIdentitySeparatorNeverAppearsWithoutBothValues()
+    {
+        var card = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "No email",
+            Email = string.Empty,
+            AccountId = "personal-account",
+            Ownership = AccountOwnership.Personal
+        });
+
+        Assert.Equal(string.Empty, card.AccountIdentitySeparator);
+        Assert.Equal("个人账号", card.AccountIdentityDisplayName);
+    }
+
+    [Fact]
+    public void LegacyUnknownOrganizationCopyIsNormalizedForDisplay()
+    {
+        var card = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Legacy",
+            Email = "legacy@example.com",
+            AccountId = "legacy-workspace",
+            Ownership = new AccountOwnership(
+                AccountOwnershipKind.Organization,
+                "legacy-workspace",
+                "企业账号（名称未知）")
+        });
+
+        Assert.Equal("组织名称未知", card.CompanyDisplayName);
+        Assert.Equal(
+            "legacy@example.com · 组织名称未知",
+            card.AccountIdentityDisplayName);
     }
 
     [Theory]

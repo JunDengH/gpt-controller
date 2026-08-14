@@ -165,6 +165,84 @@ function Invoke-InnoUninstaller {
     }
 }
 
+function Invoke-SingleInnoUninstallerForExitCode {
+    param(
+        [Parameter(Mandatory)]
+        [string]$InstallDirectory
+    )
+
+    $uninstallers = @(
+        Get-ChildItem -LiteralPath $InstallDirectory -Filter "unins*.exe" `
+            -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending
+    )
+    if ($uninstallers.Count -ne 1) {
+        throw "Expected one uninstaller; found $($uninstallers.Count)."
+    }
+
+    $startProcessArguments = @{
+        FilePath = $uninstallers[0].FullName
+        ArgumentList = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+        Wait = $true
+        PassThru = $true
+        WindowStyle = "Hidden"
+    }
+    $process = Start-Process @startProcessArguments
+    if ($process.ExitCode -eq 0) {
+        for ($attempt = 0; $attempt -lt 100; $attempt++) {
+            if (-not (Test-Path -LiteralPath $uninstallers[0].FullName)) {
+                return 0
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        throw "Successful uninstaller did not finish deleting its original executable."
+    }
+    return $process.ExitCode
+}
+
+function Enable-InstallerSmokeProvider {
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepositoryRoot,
+        [Parameter(Mandatory)]
+        [string]$CredentialHelperPath
+    )
+
+    $previousMode = $env:GPT_CONTROLLER_INSTALLER_SMOKE_MODE
+    $previousHelperPath = $env:GPT_CONTROLLER_INSTALLER_SMOKE_HELPER_PATH
+    try {
+        $env:GPT_CONTROLLER_INSTALLER_SMOKE_MODE = "seed-active-provider"
+        $env:GPT_CONTROLLER_INSTALLER_SMOKE_HELPER_PATH = $CredentialHelperPath
+        & dotnet test `
+            (Join-Path $RepositoryRoot "tests\GptController.Tests\GptController.Tests.csproj") `
+            -c Release `
+            --no-build `
+            --no-restore `
+            --filter `
+            "FullyQualifiedName=GptController.Tests.InstallerUninstallSmokeBridgeTests.SeedActiveProviderForInstallerSmoke"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not seed an active API Provider for the installer smoke test."
+        }
+    }
+    finally {
+        if ($null -eq $previousMode) {
+            Remove-Item Env:GPT_CONTROLLER_INSTALLER_SMOKE_MODE `
+                -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:GPT_CONTROLLER_INSTALLER_SMOKE_MODE = $previousMode
+        }
+
+        if ($null -eq $previousHelperPath) {
+            Remove-Item Env:GPT_CONTROLLER_INSTALLER_SMOKE_HELPER_PATH `
+                -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:GPT_CONTROLLER_INSTALLER_SMOKE_HELPER_PATH = $previousHelperPath
+        }
+    }
+}
+
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 . (Join-Path $PSScriptRoot "version.ps1")
 $currentVersion = Get-RepositoryVersion -RepositoryRoot $repoRoot
@@ -245,10 +323,25 @@ $legacyBareHelper = Join-Path $installRoot "CredentialHelper.exe"
 $currentExe = Join-Path $installRoot "GptController.exe"
 $currentHelper = Join-Path $installRoot "GptController.CredentialHelper.exe"
 $sentinelPath = Join-Path $legacyDataRoot "upgrade-smoke-sentinel.txt"
+$currentDataRoot = Get-ContainedPath `
+    -Path (Join-Path $localAppData "GptController") `
+    -Root $userProfile `
+    -Description "Current test data directory"
+$codexHome = Get-ContainedPath `
+    -Path (Join-Path $userProfile ".codex") `
+    -Root $userProfile `
+    -Description "Codex test directory"
+$codexConfig = Join-Path $codexHome "config.toml"
+$providerState = Join-Path $currentDataRoot "codex\config-state.json"
 
 $workRootCreated = $false
 $legacyDataRootCreated = $false
 $shortcutsOwnedByTest = $false
+$currentDataRootOwnedByTest = $false
+$codexHomeCreatedByTest = $false
+$codexConfigOwnedByTest = $false
+$codexBackupPathsBefore = @()
+$appliedCodexConfig = $null
 try {
     if (Test-Path -LiteralPath $legacyDataRoot) {
         throw "Refusing to reuse an existing legacy data directory '$legacyDataRoot'."
@@ -259,7 +352,24 @@ try {
     if (Test-Path -LiteralPath $currentShortcut) {
         throw "Refusing to overwrite an existing current shortcut '$currentShortcut'."
     }
+    if (Test-Path -LiteralPath $currentDataRoot) {
+        throw "Refusing to reuse an existing current data directory '$currentDataRoot'."
+    }
+    if (Test-Path -LiteralPath $codexConfig) {
+        throw "Refusing to overwrite an existing Codex config '$codexConfig'."
+    }
     $shortcutsOwnedByTest = $true
+
+    if (Test-Path -LiteralPath $codexHome -PathType Container) {
+        $codexBackupPathsBefore = @(
+            Get-ChildItem `
+                -LiteralPath $codexHome `
+                -Filter "config.toml.gpt-controller-*.bak.dpapi" `
+                -File `
+                -ErrorAction SilentlyContinue |
+                ForEach-Object { $_.FullName }
+        )
+    }
 
     New-Item -ItemType Directory -Path $workRoot | Out-Null
     $workRootCreated = $true
@@ -344,6 +454,94 @@ try {
     }
 
     Write-Host "Installer upgrade smoke test passed: v1.1.5 -> $currentVersion."
+
+    if (-not (Test-Path -LiteralPath $codexHome -PathType Container)) {
+        New-Item -ItemType Directory -Path $codexHome | Out-Null
+        $codexHomeCreatedByTest = $true
+    }
+    $originalCodexConfig =
+        "model = `"gpt-installer-smoke-original`"`r`n" +
+        "model_provider = `"openai`"`r`n" +
+        "custom_root = `"preserve-$sentinelValue`"`r`n"
+    $codexConfigOwnedByTest = $true
+    [IO.File]::WriteAllText(
+        $codexConfig,
+        $originalCodexConfig,
+        [Text.UTF8Encoding]::new($false))
+
+    # The bridge calls the public configuration service from the already-built
+    # test assembly. This creates the same DPAPI backup and state used by the
+    # packaged application without adding a production-only test switch.
+    $currentDataRootOwnedByTest = $true
+    Enable-InstallerSmokeProvider `
+        -RepositoryRoot $repoRoot `
+        -CredentialHelperPath $currentHelper
+    Assert-FileExists `
+        -Path $providerState `
+        -Description "Active API Provider restore state"
+    $appliedCodexConfig = [IO.File]::ReadAllText($codexConfig)
+    if (-not $appliedCodexConfig.Contains(
+            'model_provider = "gpt_controller_deepseek"')) {
+        throw "The installer smoke Provider was not selected in Codex config."
+    }
+    if (-not $appliedCodexConfig.Contains(
+            "GptController.CredentialHelper.exe")) {
+        throw "The active Provider does not reference the installed credential helper."
+    }
+
+    # A managed-field conflict must abort even a fully silent uninstall and
+    # leave both the application and helper available for recovery.
+    $conflictedCodexConfig = $appliedCodexConfig.Replace(
+        'model_reasoning_effort = "high"',
+        'model_reasoning_effort = "low"')
+    if ($conflictedCodexConfig -ceq $appliedCodexConfig) {
+        throw "Could not create the managed-field conflict for uninstall testing."
+    }
+    [IO.File]::WriteAllText(
+        $codexConfig,
+        $conflictedCodexConfig,
+        [Text.UTF8Encoding]::new($false))
+    $failedUninstallExitCode =
+        Invoke-SingleInnoUninstallerForExitCode -InstallDirectory $installRoot
+    if ($failedUninstallExitCode -eq 0) {
+        throw "A conflicted active Provider unexpectedly allowed uninstall."
+    }
+    Assert-FileExists `
+        -Path $currentExe `
+        -Description "Application retained after blocked uninstall"
+    Assert-FileExists `
+        -Path $currentHelper `
+        -Description "Credential helper retained after blocked uninstall"
+    Assert-FileExists `
+        -Path $providerState `
+        -Description "Provider state retained after blocked uninstall"
+    if ([IO.File]::ReadAllText($codexConfig) -cne $conflictedCodexConfig) {
+        throw "The blocked uninstall unexpectedly changed Codex config."
+    }
+
+    # Restore the exact applied generation, then verify the compiled
+    # uninstaller performs the real DPAPI-backed restore before deleting files.
+    [IO.File]::WriteAllText(
+        $codexConfig,
+        $appliedCodexConfig,
+        [Text.UTF8Encoding]::new($false))
+    $successfulUninstallExitCode =
+        Invoke-SingleInnoUninstallerForExitCode -InstallDirectory $installRoot
+    if ($successfulUninstallExitCode -ne 0) {
+        throw "Active-Provider uninstall exited with code $successfulUninstallExitCode."
+    }
+    Assert-FileMissing -Path $currentExe -Description "GPT Controller executable"
+    Assert-FileMissing `
+        -Path $currentHelper `
+        -Description "GPT Controller credential helper"
+    Assert-FileMissing `
+        -Path $providerState `
+        -Description "Consumed API Provider restore state"
+    if ([IO.File]::ReadAllText($codexConfig) -cne $originalCodexConfig) {
+        throw "Uninstall did not restore the original Codex configuration exactly."
+    }
+
+    Write-Host "Installer active-Provider uninstall smoke test passed."
 }
 catch {
     foreach ($logPath in @($legacyInstallLog, $upgradeInstallLog)) {
@@ -357,6 +555,32 @@ catch {
 }
 finally {
     $cleanupFailures = [Collections.Generic.List[string]]::new()
+    if ((Test-Path -LiteralPath $providerState -PathType Leaf) -and
+        (Test-Path -LiteralPath $currentExe -PathType Leaf)) {
+        try {
+            if ($null -ne $appliedCodexConfig) {
+                [IO.File]::WriteAllText(
+                    $codexConfig,
+                    $appliedCodexConfig,
+                    [Text.UTF8Encoding]::new($false))
+            }
+
+            $restoreProcess = Start-Process `
+                -FilePath $currentExe `
+                -ArgumentList "--restore-codex-config-for-uninstall" `
+                -Wait `
+                -PassThru `
+                -WindowStyle Hidden
+            if ($restoreProcess.ExitCode -ne 0) {
+                throw "Maintenance restore exited with code $($restoreProcess.ExitCode)."
+            }
+        }
+        catch {
+            $cleanupFailures.Add(
+                "Could not restore the installer smoke Codex config: $($_.Exception.Message)")
+        }
+    }
+
     try {
         Invoke-InnoUninstaller -InstallDirectory $installRoot
     }
@@ -385,6 +609,60 @@ finally {
         catch {
             $cleanupFailures.Add(
                 "Could not remove test data '$legacyDataRoot': $($_.Exception.Message)")
+        }
+    }
+    if ($currentDataRootOwnedByTest -and
+        (Test-Path -LiteralPath $currentDataRoot)) {
+        try {
+            Remove-Item -LiteralPath $currentDataRoot -Recurse -Force `
+                -ErrorAction Stop
+        }
+        catch {
+            $cleanupFailures.Add(
+                "Could not remove current test data '$currentDataRoot': $($_.Exception.Message)")
+        }
+    }
+    if ($codexConfigOwnedByTest -and
+        (Test-Path -LiteralPath $codexConfig -PathType Leaf)) {
+        try {
+            Remove-Item -LiteralPath $codexConfig -Force -ErrorAction Stop
+        }
+        catch {
+            $cleanupFailures.Add(
+                "Could not remove test Codex config '$codexConfig': $($_.Exception.Message)")
+        }
+    }
+    if (Test-Path -LiteralPath $codexHome -PathType Container) {
+        $newCodexBackups = @(
+            Get-ChildItem `
+                -LiteralPath $codexHome `
+                -Filter "config.toml.gpt-controller-*.bak.dpapi" `
+                -File `
+                -ErrorAction SilentlyContinue |
+                Where-Object { $codexBackupPathsBefore -notcontains $_.FullName }
+        )
+        foreach ($backup in $newCodexBackups) {
+            try {
+                Remove-Item -LiteralPath $backup.FullName -Force -ErrorAction Stop
+            }
+            catch {
+                $cleanupFailures.Add(
+                    "Could not remove test Codex backup '$($backup.FullName)': $($_.Exception.Message)")
+            }
+        }
+    }
+    if ($codexHomeCreatedByTest -and
+        (Test-Path -LiteralPath $codexHome -PathType Container)) {
+        try {
+            $codexHomeChildren = @(Get-ChildItem -LiteralPath $codexHome -Force)
+            if ($codexHomeChildren.Count -ne 0) {
+                throw "The test-created Codex directory is not empty."
+            }
+            Remove-Item -LiteralPath $codexHome -Force -ErrorAction Stop
+        }
+        catch {
+            $cleanupFailures.Add(
+                "Could not remove test Codex directory '$codexHome': $($_.Exception.Message)")
         }
     }
     if ($workRootCreated -and (Test-Path -LiteralPath $workRoot)) {

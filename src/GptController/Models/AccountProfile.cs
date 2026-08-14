@@ -25,14 +25,16 @@ public sealed record AccountProfile
         MembershipPlan.Pro20x => "Pro 20x",
         MembershipPlan.Team => "Team",
         MembershipPlan.Business => "Business",
+        MembershipPlan.Enterprise => "Enterprise",
+        MembershipPlan.Edu => "Edu",
         _ => "未知会员"
     };
 
     [JsonIgnore]
     public string OwnershipDisplayName =>
         Ownership.Kind == AccountOwnershipKind.Personal
-            ? "个人账号"
-            : string.IsNullOrWhiteSpace(Ownership.DisplayName)
-                ? "企业账号（名称未知）"
-                : Ownership.DisplayName!;
+            ? AccountOwnership.PersonalDisplayName
+            : AccountOwnership.HasKnownOrganizationName(Ownership.DisplayName)
+                ? Ownership.DisplayName!.Trim()
+                : AccountOwnership.UnknownOrganizationDisplayName;
 }

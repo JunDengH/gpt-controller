@@ -115,6 +115,36 @@ public sealed class CodexAppServerClient : ICodexAppServerClient
             new { refreshToken = false },
             TimeSpan.FromSeconds(8),
             cancellationToken);
+        var metadata = ParseAccountReadMetadata(result);
+
+        try
+        {
+            var sessions = await RequestAsync(
+                "account/sessions/list",
+                new { refreshWorkspaceMetadata = true },
+                TimeSpan.FromSeconds(8),
+                cancellationToken);
+            return EnrichWithAccountSessions(metadata, sessions);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IsUnavailableAccountSessionsMethod(exception))
+        {
+            return metadata;
+        }
+        catch (Exception exception)
+        {
+            await _logger.WarningAsync(
+                "app-server.account-sessions",
+                $"Workspace metadata unavailable; using account/read: {exception.Message}");
+            return metadata;
+        }
+    }
+
+    internal static AccountReadMetadata ParseAccountReadMetadata(JsonElement result)
+    {
         if (!result.TryGetProperty("account", out var account) ||
             account.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
@@ -126,6 +156,119 @@ public sealed class CodexAppServerClient : ICodexAppServerClient
             ReadString(account, "planType"),
             ReadString(account, "accountId") ?? ReadString(result, "accountId"));
     }
+
+    internal static AccountReadMetadata EnrichWithAccountSessions(
+        AccountReadMetadata metadata,
+        JsonElement result)
+    {
+        if (!result.TryGetProperty("sessions", out var sessions) ||
+            sessions.ValueKind != JsonValueKind.Array)
+        {
+            return metadata;
+        }
+
+        var sessionElements = sessions
+            .EnumerateArray()
+            .Where(session => session.ValueKind == JsonValueKind.Object)
+            .ToArray();
+        var activeSessionId = ReadString(result, "activeSessionId");
+        var session = sessionElements.FirstOrDefault(candidate =>
+            !string.IsNullOrWhiteSpace(activeSessionId) &&
+            string.Equals(
+                ReadString(candidate, "sessionId"),
+                activeSessionId,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (session.ValueKind == JsonValueKind.Undefined)
+        {
+            session = sessionElements.FirstOrDefault(candidate =>
+                candidate.TryGetProperty("isActive", out var isActive) &&
+                isActive.ValueKind == JsonValueKind.True);
+        }
+
+        if (session.ValueKind == JsonValueKind.Undefined && sessionElements.Length == 1)
+        {
+            session = sessionElements[0];
+        }
+
+        if (session.ValueKind == JsonValueKind.Undefined &&
+            !string.IsNullOrWhiteSpace(metadata.AccountId))
+        {
+            session = sessionElements.FirstOrDefault(candidate =>
+                FindWorkspace(candidate, metadata.AccountId) is not null);
+        }
+
+        if (session.ValueKind == JsonValueKind.Undefined)
+        {
+            return metadata;
+        }
+
+        var accountId =
+            ReadString(session, "selectedWorkspaceAccountId") ??
+            metadata.AccountId;
+        var workspace = FindWorkspace(session, accountId);
+        var workspaceKind = workspace is { } selected
+            ? ParseWorkspaceKind(ReadString(selected, "kind"))
+            : null;
+
+        return metadata with
+        {
+            Email = ReadString(session, "email") ?? metadata.Email,
+            AccountId = accountId,
+            WorkspaceKind = workspaceKind,
+            WorkspaceName = workspace is { } current
+                ? ReadString(current, "name")
+                : null
+        };
+    }
+
+    internal static bool IsUnavailableAccountSessionsMethod(Exception exception) =>
+        exception is CodexAppServerException appServerException &&
+        (string.Equals(
+             appServerException.ErrorCode,
+             "-32601",
+             StringComparison.OrdinalIgnoreCase) ||
+         appServerException.Message.Contains(
+             "method not found",
+             StringComparison.OrdinalIgnoreCase) ||
+         appServerException.Message.Contains(
+             "unknown method",
+             StringComparison.OrdinalIgnoreCase) ||
+         appServerException.Message.Contains(
+             "unknown variant",
+             StringComparison.OrdinalIgnoreCase));
+
+    private static JsonElement? FindWorkspace(JsonElement session, string? accountId)
+    {
+        if (string.IsNullOrWhiteSpace(accountId) ||
+            !session.TryGetProperty("workspaces", out var workspaces) ||
+            workspaces.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var workspace in workspaces.EnumerateArray())
+        {
+            if (workspace.ValueKind == JsonValueKind.Object &&
+                string.Equals(
+                    ReadString(workspace, "accountId"),
+                    accountId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return workspace;
+            }
+        }
+
+        return null;
+    }
+
+    private static AccountWorkspaceKind? ParseWorkspaceKind(string? kind) =>
+        kind?.Trim().ToLowerInvariant() switch
+        {
+            "personal" => AccountWorkspaceKind.Personal,
+            "workspace" => AccountWorkspaceKind.Workspace,
+            _ => null
+        };
 
     public Task<JsonElement> ReadRateLimitsAsync(
         CancellationToken cancellationToken = default) =>
@@ -523,7 +666,7 @@ public sealed class CodexAppServerClient : ICodexAppServerClient
         }
 
         var value = property.GetString();
-        return string.IsNullOrWhiteSpace(value) ? null : value;
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static string? ReadErrorCode(JsonElement error)

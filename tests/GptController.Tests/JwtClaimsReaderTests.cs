@@ -57,6 +57,75 @@ public sealed class JwtClaimsReaderTests
         Assert.Null(claims.AccessTokenExpiresAt);
     }
 
+    [Fact]
+    public void OrganizationClaimsKeepIdsForExactWorkspaceSelection()
+    {
+        var auth = new AuthDocumentInfo(
+            CreateJwt(new Dictionary<string, object?>
+            {
+                ["https://api.openai.com/auth"] =
+                    new Dictionary<string, object?>
+                    {
+                        ["chatgpt_account_id"] = "workspace-current",
+                        ["organization_id"] = "workspace-current",
+                        ["chatgpt_plan_type"] = "business",
+                        ["organizations"] = new object[]
+                        {
+                            new Dictionary<string, string>
+                            {
+                                ["id"] = "workspace-other",
+                                ["title"] = "其他组织"
+                            },
+                            new Dictionary<string, string>
+                            {
+                                ["id"] = "workspace-current",
+                                ["name"] = "当前组织"
+                            }
+                        }
+                    }
+            }),
+            CreateJwt(new Dictionary<string, object?>
+            {
+                ["https://api.openai.com/auth"] =
+                    new Dictionary<string, object?>
+                    {
+                        ["organizations"] = new object[]
+                        {
+                            new Dictionary<string, string>
+                            {
+                                ["id"] = "workspace-third",
+                                ["title"] = "第三组织"
+                            }
+                        }
+                    }
+            }),
+            "refresh-token",
+            "workspace-current");
+
+        var claims = JwtClaimsReader.Read(auth);
+
+        Assert.Equal("workspace-current", claims.AccountId);
+        Assert.Equal("workspace-current", claims.OrganizationId);
+        Assert.Equal("business", claims.PlanType);
+        Assert.Collection(
+            claims.Organizations,
+            organization =>
+            {
+                Assert.Equal("workspace-other", organization.Id);
+                Assert.Equal("其他组织", organization.Title);
+            },
+            organization =>
+            {
+                Assert.Equal("workspace-current", organization.Id);
+                Assert.Equal("当前组织", organization.Title);
+            },
+            organization =>
+            {
+                Assert.Equal("workspace-third", organization.Id);
+                Assert.Equal("第三组织", organization.Title);
+            });
+    }
+
     private static string CreateJwt(object payload)
     {
         var header = Base64Url(Encoding.UTF8.GetBytes("{}"));

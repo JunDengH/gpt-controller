@@ -72,6 +72,25 @@ public sealed class DeepSeekCodexConfigService
 
     public string CredentialHelperPath => _options.CredentialHelperPath;
 
+    internal async Task<bool> HasManagedProviderDependencyAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var current = await ReadConfigAsync(cancellationToken);
+        ValidateToml(current);
+        var editor = TomlLineEditor.Parse(current);
+        var selectedProvider = Unquote(
+            editor.GetValue(string.Empty, "model_provider"));
+        if (IsManagedProviderId(selectedProvider))
+        {
+            return true;
+        }
+
+        return new[] { ProviderId, QwenProviderId }.Any(providerId =>
+            IsCredentialHelperCommand(editor.GetValue(
+                $"model_providers.{providerId}.auth",
+                "command")));
+    }
+
     public async Task<DeepSeekConfigChangeResult> RecoverInterruptedChangeAsync(
         CancellationToken cancellationToken = default)
     {
@@ -810,6 +829,52 @@ public sealed class DeepSeekCodexConfigService
         }
 
         return value[1..^1];
+    }
+
+    private static bool IsCredentialHelperCommand(string? tomlValue)
+    {
+        if (!TryDecodeTomlString(tomlValue, out var command) ||
+            !Path.IsPathFullyQualified(command))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            Path.GetFileName(command),
+            CredentialHelperLocator.ExecutableName,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryDecodeTomlString(
+        string? tomlValue,
+        out string decoded)
+    {
+        decoded = string.Empty;
+        if (tomlValue is not { Length: >= 2 })
+        {
+            return false;
+        }
+
+        if (tomlValue[0] == '\'' && tomlValue[^1] == '\'')
+        {
+            decoded = tomlValue[1..^1];
+            return true;
+        }
+
+        if (tomlValue[0] != '"' || tomlValue[^1] != '"')
+        {
+            return false;
+        }
+
+        try
+        {
+            decoded = JsonSerializer.Deserialize<string>(tomlValue) ?? string.Empty;
+            return decoded.Length > 0;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private async Task WriteModelCatalogAsync(

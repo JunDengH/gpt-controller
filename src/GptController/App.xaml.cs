@@ -23,6 +23,13 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (UninstallCodexConfigRestoreRunner.IsRequested(e.Args))
+        {
+            var exitCode = await UninstallCodexConfigRestoreRunner.RunDefaultAsync();
+            Shutdown((int)exitCode);
+            return;
+        }
+
         var isCompactUiPreview = e.Args.Any(
             argument => string.Equals(
                 argument,
