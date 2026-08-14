@@ -98,14 +98,17 @@ public sealed class AccountCardViewModel : ObservableObject
             ? "阿里云百炼 · Responses API"
             : Profile.OwnershipDisplayName;
     public string CompanyDisplayName =>
-        !IsApiProvider &&
-        IsOrganization &&
-        !string.IsNullOrWhiteSpace(Profile.Ownership.DisplayName) &&
-        !string.Equals(
-            Profile.Ownership.DisplayName,
-            "企业账号（名称未知）",
-            StringComparison.Ordinal)
-            ? Profile.Ownership.DisplayName!
+        IsApiProvider ? string.Empty : Profile.OwnershipDisplayName;
+    public string AccountIdentityDisplayName => IsApiProvider
+        ? string.Empty
+        : string.Join(
+            " · ",
+            new[] { Email, CompanyDisplayName }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+    public string AccountIdentitySeparator =>
+        !string.IsNullOrWhiteSpace(Email) &&
+        !string.IsNullOrWhiteSpace(CompanyDisplayName)
+            ? " · "
             : string.Empty;
     public string MetricsTitle => IsDeepSeek ? "API 余额" : IsQwen ? "模型状态" : "使用额度";
     public string PrimaryMetricLabel => IsDeepSeek ? "CNY" : IsQwen ? "可用模型" : "5 小时";
@@ -303,6 +306,8 @@ public sealed class AccountCardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsProModel));
         OnPropertyChanged(nameof(OwnershipDisplayName));
         OnPropertyChanged(nameof(CompanyDisplayName));
+        OnPropertyChanged(nameof(AccountIdentityDisplayName));
+        OnPropertyChanged(nameof(AccountIdentitySeparator));
         OnPropertyChanged(nameof(MetricsTitle));
         OnPropertyChanged(nameof(PrimaryMetricLabel));
         OnPropertyChanged(nameof(SecondaryMetricLabel));

@@ -5,7 +5,15 @@ namespace GptController.Services;
 public sealed record AccountReadMetadata(
     string? Email,
     string? PlanType,
-    string? AccountId = null);
+    string? AccountId = null,
+    AccountWorkspaceKind? WorkspaceKind = null,
+    string? WorkspaceName = null);
+
+public enum AccountWorkspaceKind
+{
+    Personal,
+    Workspace
+}
 
 public sealed record ResolvedAccountMetadata(
     string Email,
@@ -24,8 +32,15 @@ public sealed class AccountMetadataService
         var accountId =
             FirstNonEmpty(accountRead?.AccountId, claims.AccountId, cached?.AccountId)
             ?? throw new InvalidDataException("The account identifier is missing.");
+        var cachedForAccount = cached is not null &&
+                               string.Equals(
+                                   cached.AccountId,
+                                   accountId,
+                                   StringComparison.OrdinalIgnoreCase)
+            ? cached
+            : null;
         var email =
-            FirstNonEmpty(accountRead?.Email, claims.Email, cached?.Email)
+            FirstNonEmpty(accountRead?.Email, claims.Email, cachedForAccount?.Email)
             ?? "未知邮箱";
 
         var plan = NormalizePlan(
@@ -33,9 +48,16 @@ public sealed class AccountMetadataService
                 quotaPlanType,
                 accountRead?.PlanType,
                 claims.PlanType,
-                cached is null ? null : ToRawPlan(cached.MembershipPlan)));
+                cachedForAccount is null
+                    ? null
+                    : ToRawPlan(cachedForAccount.MembershipPlan)));
 
-        var ownership = ResolveOwnership(plan, claims, accountId);
+        var ownership = ResolveOwnership(
+            plan,
+            claims,
+            accountId,
+            accountRead,
+            cachedForAccount);
         return new ResolvedAccountMetadata(email, accountId, plan, ownership);
     }
 
@@ -62,7 +84,19 @@ public sealed class AccountMetadataService
             "prolite" or "pro lite" or "pro 5x" => MembershipPlan.Pro5x,
             "pro" or "pro 20x" => MembershipPlan.Pro20x,
             "team" => MembershipPlan.Team,
-            "business" => MembershipPlan.Business,
+            "business" or
+                "chatgpt business" or
+                "self serve business" or
+                "self serve business prolite" or
+                "self serve business usage based" => MembershipPlan.Business,
+            "enterprise" or
+                "chatgpt enterprise" or
+                "hc" or
+                "ent26" or
+                "enterprise cbp automation" or
+                "enterprise cbp usage based" =>
+                MembershipPlan.Enterprise,
+            "education" or "edu" or "chatgpt edu" => MembershipPlan.Edu,
             _ => MembershipPlan.Unknown
         };
     }
@@ -70,37 +104,80 @@ public sealed class AccountMetadataService
     private static AccountOwnership ResolveOwnership(
         MembershipPlan plan,
         AuthClaims claims,
-        string accountId)
+        string accountId,
+        AccountReadMetadata? accountRead,
+        AccountProfile? cached)
     {
-        if (plan is not (MembershipPlan.Team or MembershipPlan.Business))
+        if (accountRead?.WorkspaceKind == AccountWorkspaceKind.Personal)
         {
             return AccountOwnership.Personal;
         }
 
-        var candidateIds = new[] { claims.OrganizationId, accountId }
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var exact = claims.Organizations.FirstOrDefault(
-            organization =>
-                !string.IsNullOrWhiteSpace(organization.Id) &&
-                candidateIds.Contains(organization.Id));
-        if (exact is not null)
+        var cachedOwnership = CachedOrganizationForAccount(cached, accountId);
+        if (accountRead?.WorkspaceKind == AccountWorkspaceKind.Workspace)
         {
-            return AccountOwnership.Organization(exact.Id, exact.Title);
+            return AccountOwnership.Organization(
+                accountId,
+                FirstKnownOrganizationName(
+                    accountRead.WorkspaceName,
+                    FindOrganization(claims.Organizations, accountId)?.Title,
+                    cachedOwnership?.DisplayName));
         }
 
-        var titledOrganizations = claims.Organizations
-            .Where(organization => !string.IsNullOrWhiteSpace(organization.Title))
-            .ToList();
-        if (titledOrganizations.Count == 1)
+        if (!IsWorkspacePlan(plan))
         {
-            var only = titledOrganizations[0];
-            return AccountOwnership.Organization(only.Id ?? claims.OrganizationId, only.Title);
+            return plan == MembershipPlan.Unknown && cachedOwnership is not null
+                ? cachedOwnership
+                : AccountOwnership.Personal;
         }
 
-        return AccountOwnership.Organization(claims.OrganizationId, null);
+        var exact = FindOrganization(claims.Organizations, accountId) ??
+                    FindOrganization(claims.Organizations, claims.OrganizationId);
+        var organizationId = FirstNonEmpty(
+            exact?.Id,
+            claims.OrganizationId,
+            cachedOwnership?.OrganizationId,
+            accountId);
+        var displayName = FirstKnownOrganizationName(
+            accountRead?.WorkspaceName,
+            exact?.Title,
+            cachedOwnership?.DisplayName);
+        return AccountOwnership.Organization(organizationId, displayName);
     }
+
+    private static bool IsWorkspacePlan(MembershipPlan plan) =>
+        plan is MembershipPlan.Team or
+            MembershipPlan.Business or
+            MembershipPlan.Enterprise or
+            MembershipPlan.Edu;
+
+    private static OrganizationClaim? FindOrganization(
+        IReadOnlyList<OrganizationClaim> organizations,
+        string? id) =>
+        string.IsNullOrWhiteSpace(id)
+            ? null
+            : organizations
+                .Where(organization => string.Equals(
+                    organization.Id,
+                    id,
+                    StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(organization =>
+                    AccountOwnership.HasKnownOrganizationName(organization.Title))
+                .FirstOrDefault();
+
+    private static AccountOwnership? CachedOrganizationForAccount(
+        AccountProfile? cached,
+        string accountId) =>
+        cached is not null &&
+        string.Equals(cached.AccountId, accountId, StringComparison.OrdinalIgnoreCase) &&
+        cached.Ownership.Kind == AccountOwnershipKind.Organization
+            ? AccountOwnership.Organization(
+                cached.Ownership.OrganizationId,
+                cached.Ownership.DisplayName)
+            : null;
+
+    private static string? FirstKnownOrganizationName(params string?[] candidates) =>
+        candidates.FirstOrDefault(AccountOwnership.HasKnownOrganizationName)?.Trim();
 
     private static string? FirstNonEmpty(params string?[] candidates) =>
         candidates.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
@@ -113,6 +190,8 @@ public sealed class AccountMetadataService
         MembershipPlan.Pro20x => "pro",
         MembershipPlan.Team => "team",
         MembershipPlan.Business => "business",
+        MembershipPlan.Enterprise => "enterprise",
+        MembershipPlan.Edu => "edu",
         _ => null
     };
 }

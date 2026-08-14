@@ -7,6 +7,19 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-14
+
+### Fixed
+
+- Restored GPT Controller-managed Codex provider settings before uninstalling so
+  DeepSeek and Qwen connections cannot leave a deleted credential-helper path in
+  `config.toml`; unsafe or conflicting restores now stop with an explicit warning.
+- Displayed the effective ChatGPT workspace beside each account email, retained a
+  previously known workspace name when refreshed tokens contain sparse metadata,
+  and provided explicit personal and unknown-workspace fallbacks.
+- Recognized current workspace plan variants and matched multi-workspace accounts by
+  their active workspace identifier instead of guessing from the available names.
+
 ## [1.3.0] - 2026-08-09
 
 ### Added
@@ -104,7 +117,8 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Published the initial release under the previous application name.
 
-[Unreleased]: https://github.com/JunDengH/gpt-controller/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/JunDengH/gpt-controller/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/JunDengH/gpt-controller/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/JunDengH/gpt-controller/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/JunDengH/gpt-controller/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/JunDengH/gpt-controller/compare/v1.1.5...v1.2.0

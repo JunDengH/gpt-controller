@@ -48,8 +48,9 @@ Responses API 兼容 DeepSeek 和阿里云百炼千问等提供商。
 ### 状态与可观测性
 
 - 并列显示 5 小时与周限额的剩余比例、进度、各自重置时间和数据是否过期。
-- 显示 Free、Plus、Pro 5x、Pro 20x、Team、Business；Team/Business 显示当前组织
-  名称，其他套餐显示“个人账号”。
+- 显示 Free、Plus、Pro 5x、Pro 20x、Team、Business、Enterprise、Edu；工作区
+  套餐按当前账号精确显示组织名称，无法确认名称时显示“组织名称未知”，个人账号显示
+  “个人账号”。
 - 显示 DeepSeek CNY 余额，并提供需要明确确认的最小 Responses 测试。
 - 主窗口展示当前连接和状态；系统托盘提供当前连接、打开和退出入口。
 
@@ -77,6 +78,10 @@ ChatGPT、DeepSeek 与千问凭据文件都使用 DPAPI `CurrentUser` 加密。�
 ```text
 %USERPROFILE%\.codex\auth.json
 ```
+
+通过安装器卸载时，程序会先恢复由 GPT Controller 接管前的 Codex 配置。如果检测到
+并发切换、外部配置冲突或备份不完整，卸载会中止并保留程序文件，避免留下指向已删除
+凭据助手的 Provider 配置。
 
 必须保持官方可读格式，因此不会由本软件额外加密。
 
@@ -163,9 +168,13 @@ dotnet run --project src\GptController\GptController.csproj
 | `prolite`, `pro_lite`, `pro-lite` | Pro 5x |
 | `pro` | Pro 20x |
 | `team` | Team |
-| `business` | Business |
+| `business`, `chatgpt_business`, `self_serve_business*` | Business |
+| `enterprise`, `chatgpt_enterprise`, `hc`, `ent26`, `enterprise_cbp_*` | Enterprise |
+| `education`, `edu`, `chatgpt_edu` | Edu |
 
-未知套餐不会被猜测。网络或协议失败时保留最后一次成功数据并标记为过期。
+未知套餐不会被猜测。工作区名称优先取自官方 app-server 当前会话，并只按当前账号 ID
+精确匹配；旧版 app-server 不支持该能力时回退到令牌声明和同账号缓存。网络或协议失败
+时保留最后一次成功数据并标记为过期。
 
 ## 许可证
 

@@ -14,6 +14,7 @@ public sealed class OAuthAccountService
     private readonly QuotaParser _quotaParser;
     private readonly OperationGate _operationGate;
     private readonly RedactingLogger _logger;
+    private readonly Action<string> _openBrowser;
 
     public OAuthAccountService(
         AppPaths paths,
@@ -24,6 +25,29 @@ public sealed class OAuthAccountService
         QuotaParser quotaParser,
         OperationGate operationGate,
         RedactingLogger logger)
+        : this(
+            paths,
+            vault,
+            locator,
+            appServerFactory,
+            metadataService,
+            quotaParser,
+            operationGate,
+            logger,
+            OpenBrowser)
+    {
+    }
+
+    internal OAuthAccountService(
+        AppPaths paths,
+        ProfileVault vault,
+        ICodexRuntimeLocator locator,
+        ICodexAppServerClientFactory appServerFactory,
+        AccountMetadataService metadataService,
+        QuotaParser quotaParser,
+        OperationGate operationGate,
+        RedactingLogger logger,
+        Action<string> openBrowser)
     {
         _paths = paths;
         _vault = vault;
@@ -33,6 +57,7 @@ public sealed class OAuthAccountService
         _quotaParser = quotaParser;
         _operationGate = operationGate;
         _logger = logger;
+        _openBrowser = openBrowser;
     }
 
     public async Task<AccountProfile> AddAccountAsync(
@@ -57,11 +82,7 @@ public sealed class OAuthAccountService
                              cancellationToken))
             {
                 var login = await client.StartChatGptLoginAsync(cancellationToken);
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = login.AuthUrl,
-                    UseShellExecute = true
-                });
+                _openBrowser(login.AuthUrl);
                 status?.Invoke("请在浏览器中完成 ChatGPT 登录…");
                 await client.WaitForLoginCompletedAsync(
                     login.LoginId,
@@ -100,14 +121,43 @@ public sealed class OAuthAccountService
             }
 
             var claims = JwtClaimsReader.Read(auth);
-            var existing = !string.IsNullOrWhiteSpace(claims.AccountId)
-                ? await _vault.FindByAccountIdAsync(claims.AccountId, cancellationToken)
-                : null;
-            var metadata = _metadataService.Resolve(
+            var initialMetadata = _metadataService.Resolve(
                 claims,
                 quotaResult?.PlanType,
-                accountRead,
-                existing);
+                accountRead);
+            if (string.IsNullOrWhiteSpace(claims.AccountId) ||
+                !string.Equals(
+                    claims.AccountId,
+                    initialMetadata.AccountId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "登录凭据与 app-server 返回的 workspace 不一致，已拒绝保存。");
+            }
+
+            var existing = await _vault.FindByAccountIdAsync(
+                initialMetadata.AccountId,
+                cancellationToken);
+            var metadata = existing is null
+                ? initialMetadata
+                : _metadataService.Resolve(
+                    claims,
+                    quotaResult?.PlanType,
+                    accountRead,
+                    existing);
+            if (!string.Equals(
+                    metadata.AccountId,
+                    initialMetadata.AccountId,
+                    StringComparison.OrdinalIgnoreCase) ||
+                existing is not null &&
+                !string.Equals(
+                    existing.AccountId,
+                    metadata.AccountId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "登录结果的 workspace 标识在保存前发生了变化。");
+            }
 
             var nickname = existing?.Nickname;
             if (string.IsNullOrWhiteSpace(nickname))
@@ -138,4 +188,11 @@ public sealed class OAuthAccountService
             QuotaService.DeleteDirectoryBestEffort(loginDirectory);
         }
     }
+
+    private static void OpenBrowser(string url) =>
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = url,
+            UseShellExecute = true
+        });
 }

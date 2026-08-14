@@ -9,13 +9,15 @@ public enum ConnectionProvider
 
 public enum MembershipPlan
 {
-    Unknown,
-    Free,
-    Plus,
-    Pro5x,
-    Pro20x,
-    Team,
-    Business
+    Unknown = 0,
+    Free = 1,
+    Plus = 2,
+    Pro5x = 3,
+    Pro20x = 4,
+    Team = 5,
+    Business = 6,
+    Enterprise = 7,
+    Edu = 8
 }
 
 public enum AccountOwnershipKind
