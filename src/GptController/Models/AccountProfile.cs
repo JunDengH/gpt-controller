@@ -32,9 +32,16 @@ public sealed record AccountProfile
 
     [JsonIgnore]
     public string OwnershipDisplayName =>
-        Ownership.Kind == AccountOwnershipKind.Personal
-            ? AccountOwnership.PersonalDisplayName
-            : AccountOwnership.HasKnownOrganizationName(Ownership.DisplayName)
+        IsWorkspacePlan(MembershipPlan) &&
+        Ownership.Kind == AccountOwnershipKind.Organization
+            ? AccountOwnership.HasKnownOrganizationName(Ownership.DisplayName)
                 ? Ownership.DisplayName!.Trim()
-                : AccountOwnership.UnknownOrganizationDisplayName;
+                : AccountOwnership.UnknownOrganizationDisplayName
+            : string.Empty;
+
+    private static bool IsWorkspacePlan(MembershipPlan plan) =>
+        plan is MembershipPlan.Team or
+            MembershipPlan.Business or
+            MembershipPlan.Enterprise or
+            MembershipPlan.Edu;
 }

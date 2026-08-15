@@ -135,37 +135,120 @@ public sealed class AccountCardViewModelTests
         Assert.Null(card.ApiPresentation);
     }
 
-    [Fact]
-    public void OAuthIdentityAlwaysIncludesAnUnambiguousOwnershipLabel()
+    [Theory]
+    [InlineData(MembershipPlan.Team)]
+    [InlineData(MembershipPlan.Business)]
+    [InlineData(MembershipPlan.Enterprise)]
+    [InlineData(MembershipPlan.Edu)]
+    public void OrganizationPlansDisplayOrganizationName(
+        MembershipPlan membershipPlan)
     {
         var organization = new AccountCardViewModel(new AccountProfile
         {
             Nickname = "Team",
             Email = "team@example.cn",
             AccountId = "team-account",
+            MembershipPlan = membershipPlan,
             Ownership = AccountOwnership.Organization("org", "示例科技")
         });
-        var personal = CreateCard(QuotaStatus.Fresh, null);
-        var unnamedOrganization = new AccountCardViewModel(new AccountProfile
+
+        Assert.True(organization.IsOrganization);
+        Assert.Equal("示例科技", organization.CompanyDisplayName);
+        Assert.Equal("示例科技", organization.OwnershipDisplayName);
+        Assert.Equal(
+            "team@example.cn · 示例科技",
+            organization.AccountIdentityDisplayName);
+        Assert.Equal(" · ", organization.AccountIdentitySeparator);
+    }
+
+    [Theory]
+    [InlineData(MembershipPlan.Unknown)]
+    [InlineData(MembershipPlan.Free)]
+    [InlineData(MembershipPlan.Plus)]
+    [InlineData(MembershipPlan.Pro5x)]
+    [InlineData(MembershipPlan.Pro20x)]
+    public void NonOrganizationPlansOnlyDisplayEmailEvenWithOrganizationMetadata(
+        MembershipPlan membershipPlan)
+    {
+        var card = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Personal",
+            Email = "personal@example.cn",
+            AccountId = "personal-account",
+            MembershipPlan = membershipPlan,
+            Ownership = AccountOwnership.Organization("stale-org", "错误缓存的组织名")
+        });
+
+        Assert.False(card.IsOrganization);
+        Assert.Equal(string.Empty, card.CompanyDisplayName);
+        Assert.Equal(string.Empty, card.OwnershipDisplayName);
+        Assert.Equal("personal@example.cn", card.AccountIdentityDisplayName);
+        Assert.Equal(string.Empty, card.AccountIdentitySeparator);
+    }
+
+    [Fact]
+    public void OrganizationPlanWithPersonalOwnershipOnlyDisplaysEmail()
+    {
+        var card = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Team",
+            Email = "team@example.cn",
+            AccountId = "team-account",
+            MembershipPlan = MembershipPlan.Team,
+            Ownership = AccountOwnership.Personal
+        });
+
+        Assert.False(card.IsOrganization);
+        Assert.Equal(string.Empty, card.CompanyDisplayName);
+        Assert.Equal(string.Empty, card.OwnershipDisplayName);
+        Assert.Equal("team@example.cn", card.AccountIdentityDisplayName);
+        Assert.Equal(string.Empty, card.AccountIdentitySeparator);
+    }
+
+    [Fact]
+    public void OrganizationWithoutKnownNameUsesUnknownOrganizationCopy()
+    {
+        var card = new AccountCardViewModel(new AccountProfile
         {
             Nickname = "Unknown org",
             Email = "unknown@example.cn",
             AccountId = "unknown-org",
+            MembershipPlan = MembershipPlan.Business,
             Ownership = AccountOwnership.Organization("org", null)
         });
 
-        Assert.Equal("示例科技", organization.CompanyDisplayName);
-        Assert.Equal("个人账号", personal.CompanyDisplayName);
-        Assert.Equal("组织名称未知", unnamedOrganization.CompanyDisplayName);
-        Assert.Equal(
-            "team@example.cn · 示例科技",
-            organization.AccountIdentityDisplayName);
-        Assert.Equal(
-            "test@example.com · 个人账号",
-            personal.AccountIdentityDisplayName);
+        Assert.True(card.IsOrganization);
+        Assert.Equal("组织名称未知", card.CompanyDisplayName);
+        Assert.Equal("组织名称未知", card.OwnershipDisplayName);
         Assert.Equal(
             "unknown@example.cn · 组织名称未知",
-            unnamedOrganization.AccountIdentityDisplayName);
+            card.AccountIdentityDisplayName);
+        Assert.Equal(" · ", card.AccountIdentitySeparator);
+    }
+
+    [Theory]
+    [InlineData("Personal")]
+    [InlineData("Personal account")]
+    [InlineData("个人账号")]
+    public void PersonalLabelsInOrganizationCacheUseUnknownOrganizationCopy(
+        string cachedDisplayName)
+    {
+        var card = new AccountCardViewModel(new AccountProfile
+        {
+            Nickname = "Legacy team",
+            Email = "legacy-team@example.cn",
+            AccountId = "legacy-team",
+            MembershipPlan = MembershipPlan.Team,
+            Ownership = new AccountOwnership(
+                AccountOwnershipKind.Organization,
+                "legacy-org",
+                cachedDisplayName)
+        });
+
+        Assert.Equal("组织名称未知", card.CompanyDisplayName);
+        Assert.Equal(
+            "legacy-team@example.cn · 组织名称未知",
+            card.AccountIdentityDisplayName);
     }
 
     [Fact]
@@ -176,11 +259,12 @@ public sealed class AccountCardViewModelTests
             Nickname = "No email",
             Email = string.Empty,
             AccountId = "personal-account",
+            MembershipPlan = MembershipPlan.Plus,
             Ownership = AccountOwnership.Personal
         });
 
         Assert.Equal(string.Empty, card.AccountIdentitySeparator);
-        Assert.Equal("个人账号", card.AccountIdentityDisplayName);
+        Assert.Equal(string.Empty, card.AccountIdentityDisplayName);
     }
 
     [Fact]
@@ -191,6 +275,7 @@ public sealed class AccountCardViewModelTests
             Nickname = "Legacy",
             Email = "legacy@example.com",
             AccountId = "legacy-workspace",
+            MembershipPlan = MembershipPlan.Enterprise,
             Ownership = new AccountOwnership(
                 AccountOwnershipKind.Organization,
                 "legacy-workspace",
@@ -332,6 +417,7 @@ public sealed class AccountCardViewModelTests
             Nickname = "Test",
             Email = "test@example.com",
             AccountId = "account",
+            MembershipPlan = MembershipPlan.Plus,
             Ownership = AccountOwnership.Personal,
             Quota = new QuotaSnapshot
             {
@@ -363,6 +449,7 @@ public sealed class AccountCardViewModelTests
             Nickname = "Test",
             Email = "test@example.com",
             AccountId = "account",
+            MembershipPlan = MembershipPlan.Plus,
             Ownership = AccountOwnership.Personal,
             Quota = new QuotaSnapshot
             {

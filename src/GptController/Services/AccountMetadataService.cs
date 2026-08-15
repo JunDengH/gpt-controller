@@ -43,14 +43,19 @@ public sealed class AccountMetadataService
             FirstNonEmpty(accountRead?.Email, claims.Email, cachedForAccount?.Email)
             ?? "未知邮箱";
 
-        var plan = NormalizePlan(
-            FirstNonEmpty(
-                quotaPlanType,
-                accountRead?.PlanType,
-                claims.PlanType,
-                cachedForAccount is null
-                    ? null
-                    : ToRawPlan(cachedForAccount.MembershipPlan)));
+        var remotePlanTypes = new[]
+        {
+            quotaPlanType,
+            accountRead?.PlanType,
+            claims.PlanType
+        };
+        var plan = FirstRecognizedPlan(remotePlanTypes);
+        if (plan == MembershipPlan.Unknown &&
+            remotePlanTypes.All(string.IsNullOrWhiteSpace) &&
+            cachedForAccount is not null)
+        {
+            plan = NormalizePlan(ToRawPlan(cachedForAccount.MembershipPlan));
+        }
 
         var ownership = ResolveOwnership(
             plan,
@@ -83,8 +88,11 @@ public sealed class AccountMetadataService
             "plus" or "chatgpt plus" => MembershipPlan.Plus,
             "prolite" or "pro lite" or "pro 5x" => MembershipPlan.Pro5x,
             "pro" or "pro 20x" => MembershipPlan.Pro20x,
-            "team" => MembershipPlan.Team,
+            "team" or "chatgpt team" => MembershipPlan.Team,
             "business" or
+                "team business" or
+                "teambusiness" or
+                "chatgpt team business" or
                 "chatgpt business" or
                 "self serve business" or
                 "self serve business prolite" or
@@ -114,13 +122,17 @@ public sealed class AccountMetadataService
         }
 
         var cachedOwnership = CachedOrganizationForAccount(cached, accountId);
+        var exact = FindOrganization(claims.Organizations, accountId);
         if (accountRead?.WorkspaceKind == AccountWorkspaceKind.Workspace)
         {
             return AccountOwnership.Organization(
-                accountId,
+                FirstNonEmpty(
+                    exact?.Id,
+                    cachedOwnership?.OrganizationId,
+                    accountId),
                 FirstKnownOrganizationName(
                     accountRead.WorkspaceName,
-                    FindOrganization(claims.Organizations, accountId)?.Title,
+                    exact?.Title,
                     cachedOwnership?.DisplayName));
         }
 
@@ -131,11 +143,8 @@ public sealed class AccountMetadataService
                 : AccountOwnership.Personal;
         }
 
-        var exact = FindOrganization(claims.Organizations, accountId) ??
-                    FindOrganization(claims.Organizations, claims.OrganizationId);
         var organizationId = FirstNonEmpty(
             exact?.Id,
-            claims.OrganizationId,
             cachedOwnership?.OrganizationId,
             accountId);
         var displayName = FirstKnownOrganizationName(
@@ -170,14 +179,29 @@ public sealed class AccountMetadataService
         string accountId) =>
         cached is not null &&
         string.Equals(cached.AccountId, accountId, StringComparison.OrdinalIgnoreCase) &&
-        cached.Ownership.Kind == AccountOwnershipKind.Organization
+        cached.Ownership.Kind == AccountOwnershipKind.Organization &&
+        AccountOwnership.HasKnownOrganizationName(cached.Ownership.DisplayName)
             ? AccountOwnership.Organization(
-                cached.Ownership.OrganizationId,
+                FirstNonEmpty(cached.Ownership.OrganizationId, accountId),
                 cached.Ownership.DisplayName)
             : null;
 
     private static string? FirstKnownOrganizationName(params string?[] candidates) =>
         candidates.FirstOrDefault(AccountOwnership.HasKnownOrganizationName)?.Trim();
+
+    private MembershipPlan FirstRecognizedPlan(IEnumerable<string?> candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            var plan = NormalizePlan(candidate);
+            if (plan != MembershipPlan.Unknown)
+            {
+                return plan;
+            }
+        }
+
+        return MembershipPlan.Unknown;
+    }
 
     private static string? FirstNonEmpty(params string?[] candidates) =>
         candidates.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();

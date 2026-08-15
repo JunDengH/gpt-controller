@@ -634,6 +634,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     cancellationToken);
                 account.UpdateProfile(updated);
             }
+            await SaveConnectionProjectionAsync(cancellationToken);
             NotifyConnectionsChanged();
             if (updateGlobalStatus)
             {
@@ -1707,6 +1708,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         NotifyConnectionsChanged();
+    }
+
+    private async Task SaveConnectionProjectionAsync(
+        CancellationToken cancellationToken)
+    {
+        var profiles = await _vault.LoadProfilesAsync(cancellationToken);
+        var deepSeek = await _deepSeekStore.GetAsync(cancellationToken);
+        var qwen = _qwenStore is null
+            ? null
+            : await _qwenStore.GetAsync(cancellationToken);
+        await _connectionIndexStore.SaveProjectionAsync(
+            profiles,
+            deepSeek,
+            qwen,
+            cancellationToken);
     }
 
     private static DeepSeekConnection CreatePreviewDeepSeek() => new()

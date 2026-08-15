@@ -5,12 +5,21 @@ public sealed record AccountOwnership(
     string? OrganizationId = null,
     string? DisplayName = null)
 {
-    public const string PersonalDisplayName = "个人账号";
     public const string UnknownOrganizationDisplayName = "组织名称未知";
     private const string LegacyUnknownOrganizationDisplayName = "企业账号（名称未知）";
 
+    private static readonly HashSet<string> InvalidOrganizationDisplayNames =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Personal",
+            "Personal account",
+            "个人账号",
+            UnknownOrganizationDisplayName,
+            LegacyUnknownOrganizationDisplayName
+        };
+
     public static AccountOwnership Personal { get; } =
-        new(AccountOwnershipKind.Personal, null, PersonalDisplayName);
+        new(AccountOwnershipKind.Personal);
 
     public static AccountOwnership Organization(string? id, string? displayName) =>
         new(
@@ -22,12 +31,5 @@ public sealed record AccountOwnership(
 
     public static bool HasKnownOrganizationName(string? displayName) =>
         !string.IsNullOrWhiteSpace(displayName) &&
-        !string.Equals(
-            displayName.Trim(),
-            UnknownOrganizationDisplayName,
-            StringComparison.Ordinal) &&
-        !string.Equals(
-            displayName.Trim(),
-            LegacyUnknownOrganizationDisplayName,
-            StringComparison.Ordinal);
+        !InvalidOrganizationDisplayNames.Contains(displayName.Trim());
 }

@@ -181,6 +181,11 @@ public sealed class ConnectionCardTemplateSelectorTests
             "ToolTip=\"{Binding AccountIdentityDisplayName, Mode=OneWay}\"",
             template,
             StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            template.Split(
+                "AccountIdentityDisplayName",
+                StringSplitOptions.None).Length - 1);
         Assert.Contains("AccountIdentitySeparator", template, StringComparison.Ordinal);
         Assert.DoesNotContain("OwnershipDisplayName", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"套餐\"", template, StringComparison.Ordinal);

@@ -127,7 +127,7 @@ public sealed class QuotaServiceTests
         {
             MembershipPlan = MembershipPlan.Business,
             Ownership = AccountOwnership.Organization(
-                harness.Profile.AccountId,
+                "organization-distinct",
                 "已缓存组织")
         };
         workspace = await harness.Vault.UpsertProfileAsync(workspace);
@@ -137,7 +137,38 @@ public sealed class QuotaServiceTests
 
         Assert.Equal(MembershipPlan.Business, updated.MembershipPlan);
         Assert.Equal(AccountOwnershipKind.Organization, updated.Ownership.Kind);
+        Assert.Equal("organization-distinct", updated.Ownership.OrganizationId);
         Assert.Equal("已缓存组织", updated.Ownership.DisplayName);
+    }
+
+    [Fact]
+    public async Task SparseWorkspaceRefreshHealsLegacyPersonalOrganizationName()
+    {
+        await using var harness = await QuotaHarness.CreateAsync(
+            isActive: false,
+            accessTokenExpiration: DateTimeOffset.UtcNow.AddMinutes(10));
+        var workspace = harness.Profile with
+        {
+            MembershipPlan = MembershipPlan.Business,
+            Ownership = new AccountOwnership(
+                AccountOwnershipKind.Organization,
+                "legacy-personal-organization",
+                "Personal")
+        };
+        workspace = await harness.Vault.UpsertProfileAsync(workspace);
+        harness.Factory.PlanType = "business";
+
+        var updated = await harness.Service.RefreshAsync(workspace.Id);
+        var persisted = await harness.Vault.GetProfileAsync(workspace.Id);
+
+        Assert.NotNull(persisted);
+        Assert.Equal(MembershipPlan.Business, updated.MembershipPlan);
+        Assert.Equal(AccountOwnershipKind.Organization, updated.Ownership.Kind);
+        Assert.Equal(harness.Profile.AccountId, updated.Ownership.OrganizationId);
+        Assert.Equal(
+            AccountOwnership.UnknownOrganizationDisplayName,
+            updated.Ownership.DisplayName);
+        Assert.Equal(updated.Ownership, persisted.Ownership);
     }
 
     [Theory]
