@@ -7,6 +7,19 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-08-15
+
+### Fixed
+
+- Removed personal-account ownership copy from OAuth cards so non-workspace accounts
+  show only their email address without a dangling separator.
+- Restricted organization-name display to workspace plans and normalized legacy
+  `Personal` workspace metadata to the explicit unknown-organization fallback.
+- Recognized additional Team/Business plan aliases and kept later valid workspace
+  signals from being hidden by an earlier unknown plan value.
+- Rebuilt the unified connection index immediately after successful connection
+  refreshes so repaired ownership metadata is projected without an application restart.
+
 ## [1.3.1] - 2026-08-14
 
 ### Fixed
@@ -117,7 +130,8 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Published the initial release under the previous application name.
 
-[Unreleased]: https://github.com/JunDengH/gpt-controller/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/JunDengH/gpt-controller/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/JunDengH/gpt-controller/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/JunDengH/gpt-controller/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/JunDengH/gpt-controller/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/JunDengH/gpt-controller/compare/v1.2.0...v1.2.1

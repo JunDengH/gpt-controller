@@ -62,8 +62,8 @@ interoperability, credential safety and regression coverage.**
   and stale-data status side by side.
 - Display Free, Plus, Pro 5x, Pro 20x, Team, Business, Enterprise, and Edu plans.
   Workspace plans show the organization for the exact current account, fall back to
-  "Organization name unavailable" when it cannot be confirmed, and label personal
-  accounts as "Personal account."
+  "Organization name unavailable" when it cannot be confirmed, while non-workspace
+  accounts show only their email address without a personal-account label.
 - Show the DeepSeek CNY balance and provide an explicitly confirmed minimal Responses
   test.
 - Show the current connection and status in the main window; expose the current

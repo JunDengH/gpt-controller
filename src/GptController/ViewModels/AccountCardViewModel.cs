@@ -70,7 +70,9 @@ public sealed class AccountCardViewModel : ObservableObject
             ? "千问 API"
             : "ChatGPT OAuth";
     public bool IsOrganization =>
-        !IsApiProvider && Profile.Ownership.Kind == AccountOwnershipKind.Organization;
+        !IsApiProvider &&
+        IsOrganizationPlan(Profile.MembershipPlan) &&
+        Profile.Ownership.Kind == AccountOwnershipKind.Organization;
     public string PlanDisplayName => IsDeepSeek
         ? $"{_deepSeek!.Model} · Responses API"
         : IsQwen
@@ -96,9 +98,11 @@ public sealed class AccountCardViewModel : ObservableObject
         ? FormatDeepSeekAvailability(_deepSeek!)
         : IsQwen
             ? "阿里云百炼 · Responses API"
-            : Profile.OwnershipDisplayName;
+            : CompanyDisplayName;
     public string CompanyDisplayName =>
-        IsApiProvider ? string.Empty : Profile.OwnershipDisplayName;
+        IsOrganization
+            ? FormatOrganizationDisplayName(Profile.Ownership.DisplayName)
+            : string.Empty;
     public string AccountIdentityDisplayName => IsApiProvider
         ? string.Empty
         : string.Join(
@@ -338,6 +342,17 @@ public sealed class AccountCardViewModel : ObservableObject
             false => "官方 API · 当前不可用",
             null => "官方 API · 等待验证"
         };
+
+    private static bool IsOrganizationPlan(MembershipPlan plan) =>
+        plan is MembershipPlan.Team or
+            MembershipPlan.Business or
+            MembershipPlan.Enterprise or
+            MembershipPlan.Edu;
+
+    private static string FormatOrganizationDisplayName(string? displayName) =>
+        AccountOwnership.HasKnownOrganizationName(displayName)
+            ? displayName!.Trim()
+            : AccountOwnership.UnknownOrganizationDisplayName;
 
     private static ApiConnectionCardPresentation CreateDeepSeekPresentation(
         DeepSeekConnection connection)
