@@ -39,19 +39,23 @@ Responses API 兼容 DeepSeek 和阿里云百炼千问等提供商。
 
 - 在统一界面管理 ChatGPT OAuth、DeepSeek 和阿里云百炼千问连接。
 - 在明确确认后切换 Chat、Work、Codex 共用的账号登录态；失败时自动恢复并重启原连接。
-- 使用官方 `https://api.deepseek.com/` 和 Responses API，支持
-  `deepseek-v4-flash` / `deepseek-v4-pro`。
-- 支持阿里云百炼北京、新加坡、弗吉尼亚、法兰克福、东京地域，动态读取当前账号可用的
+- 使用官方 `https://api.deepseek.com/` 和 Responses API，
+  从官方 `GET /models` 动态同步可用模型，不再固定为两个旧模型。
+- 支持阿里云百炼北京、新加坡、弗吉尼亚、法兰克福、东京、中国香港地域，动态读取当前账号可用的
   `qwen*` 模型，并在应用前验证 Responses Function Call 兼容性。
-- DeepSeek 与千问共用可搜索的模型选择窗口；千问自动刷新不会发起推理请求。
+- DeepSeek 与千问共用可搜索的模型选择窗口；自动同步仅查询模型列表和余额，不发起推理请求。
+
+- 默认每 2 分钟自动同步，设置支持 1–120 分钟；启动后立即刷新。升级时旧版 15 分钟默认值调整为 2 分钟，其它自定义间隔保留。
+- 千问使用百炼原生分页模型接口，旧地域接口返回 404 时回退到兼容接口。
+- 显示官方返回的工作区积分；接口未提供时显示“未提供”，不按零余额处理。
 
 ### 状态与可观测性
 
-- 并列显示 5 小时与周限额的剩余比例、进度、各自重置时间和数据是否过期。
-- 显示 Free、Plus、Pro 5x、Pro 20x、Team、Business、Enterprise、Edu；工作区
+- 按接口返回的实际窗口时长显示 Work / Codex 共享用量、剩余比例、重置时间和数据是否过期。未返回窗口时显示“不适用”，不推断为 0% 或 100%。
+- 显示 Free、Go、Plus、Pro 5x、Pro 10x、Pro 25x、Business、Enterprise、Edu；工作区
   套餐按当前账号精确显示组织名称，无法确认名称时显示“组织名称未知”；非工作区账号
   仅显示邮箱，不追加个人账号标签。
-- 显示 DeepSeek CNY 余额，并提供需要明确确认的最小 Responses 测试。
+- 显示 DeepSeek CNY / USD 余额，并提供需要明确确认的最小 Responses 测试。
 - 主窗口展示当前连接和状态；系统托盘提供当前连接、打开和退出入口。
 
 ## 系统要求
@@ -152,8 +156,7 @@ dotnet run --project src\GptController\GptController.csproj
 ## 额度与会员数据
 
 额度通过官方 app-server 的 `account/rateLimits/read` 获取。程序优先使用
-`rateLimitsByLimitId.codex`，按窗口时长识别约 300 分钟的 5 小时限额和约
-10,080 分钟的周限额，并分别计算：
+`rateLimitsByLimitId.codex`，按返回时长保留短期和长期窗口（包括日、周、月等窗口）；不强制每个套餐都有五小时限额。对已返回的窗口计算：
 
 ```text
 剩余百分比 = 100 - usedPercent
@@ -165,18 +168,46 @@ dotnet run --project src\GptController\GptController.csproj
 |---|---|
 | `free`, `guest` | Free |
 | `plus` | Plus |
+| `go`, `chatgpt_go` | Go |
 | `prolite`, `pro_lite`, `pro-lite` | Pro 5x |
-| `pro` | Pro 20x |
-| `team` | Team |
+| `pro` | Pro 10x |
+| `promax`, `pro_max`, `pro_25x` | Pro 25x |
+| `team`（旧协议名称） | Business |
 | `business`, `chatgpt_business`, `self_serve_business*` | Business |
 | `enterprise`, `chatgpt_enterprise`, `hc`, `ent26`, `enterprise_cbp_*` | Enterprise |
-| `education`, `edu`, `chatgpt_edu` | Edu |
+| `education`, `edu`, `edu_plus`, `edu_pro`, `chatgpt_edu` | Edu |
 
-未知套餐不会被猜测。工作区名称优先取自官方 app-server 当前会话，并只按当前账号 ID
-精确匹配；旧版 app-server 不支持该能力时回退到令牌声明和同账号缓存。网络或协议失败
+未知套餐不会被猜测。工作区名称和原始套餐代码优先取自官方账号详情，并只按当前账号 ID
+精确匹配；app-server 会话、令牌声明和同账号缓存作为回退。网络或协议失败
 时保留最后一次成功数据并标记为过期。
 
 ## 许可证
 
 [MIT](LICENSE)。研究与互操作参考见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+模型发现接口依据：[DeepSeek 模型列表](https://api-docs.deepseek.com/api/list-models/)、[百炼查询模型列表](https://help.aliyun.com/zh/model-studio/list-models)、[地域 Base URL](https://help.aliyun.com/zh/model-studio/base-url)。
+
+## 深色连接台账
+
+主页将 ChatGPT 账号和 API 连接放入同一台账。顶部显示正在使用的连接；选中台账行只更新右侧详情，点击“切换连接”才执行切换。右侧支持模型选择、同步和删除，刷新后保留选中的连接。
+
+## 官方信息核对（2026-10-07）
+
+- 当前套餐名称采用 Free、Go、Plus、Pro 5x、Pro 10x、Pro 25x、Business、Enterprise、Edu。当前官方 Pro 提供 $100/$200/$500 月度档位，且没有五小时限额；Pro 档位按官方客户端使用的套餐代码识别：`prolite` 为 5x、`pro` 为 10x、`promax` 为 25x；旧 CLI 无法识别 `promax` 时使用官方账号详情接口补全。
+- 旧索引的套餐枚举数值保持兼容，历史 Pro 枚举保持可读取，并在刷新后更新当前档位，Team 显示 Business。新接口返回未知套餐时保留原始代码，不用旧 Token 的套餐覆盖。
+- 模型名称、上下文、输出上限、输入模态和推理档位采用官方 API 元数据。缺少元数据时采用保守上下文回退，不标注为官方能力。
+- DeepSeek 新连接默认使用 `deepseek-flash`；旧 V4 Flash 名称按旧别名读取。Responses 的内置搜索、verbosity 和 reasoning summary 不再标记为支持，因为官方文档说明它们被忽略或没有效果。
+- 百炼模型查询使用文档示例的 `providers=qwen&capabilities=TG`。支持六个地域，并允许北京、新加坡、弗吉尼亚、香港选择共享域名或业务空间专属域名；东京、法兰克福需要业务空间 ID。
+
+依据：[当前英文定价](https://learn.chatgpt.com/docs/pricing)、[app-server 协议](https://learn.chatgpt.com/docs/app-server)、[DeepSeek 更新说明](https://api-docs.deepseek.com/updates/)、[DeepSeek 模型列表](https://api-docs.deepseek.com/api/list-models/)、[DeepSeek Responses](https://api-docs.deepseek.com/guides/responses_api/)、[百炼模型列表](https://help.aliyun.com/zh/model-studio/list-models)、[百炼 Base URL](https://help.aliyun.com/zh/model-studio/base-url)。
+
+说明：翻译页可能落后于当前英文文档；实际账号权限与实时额度始终以官方接口返回为准。详情见 [官方信息核对记录](docs/official-information-2026-10-07.md)。
+
+## Pro 档位与团队名称修复
+
+Pro 5x / 10x / 25x 分别保留为独立档位。旧索引数值不会被重排；无法确认的旧档位等待刷新，不直接改成另一档。
+
+导入、登录保存和额度刷新都会尝试读取官方账号详情 `/backend-api/wham/accounts/check`。若工作区名称缺失，再读取官方客户端使用的版本化账号接口。两种返回形状都严格按当前账号 ID 匹配，不采用默认账号、第一条工作区或其他团队的名字。成功后保存团队名称；请求失败时保留同账号名称，并显示原因。
+
+详见 [Pro 档位和团队名修复记录](docs/pro-tiers-and-workspaces-2026-10-07.md)。

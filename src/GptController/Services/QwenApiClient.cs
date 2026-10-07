@@ -30,34 +30,69 @@ public sealed class QwenApiClient : IQwenApiClient
         CancellationToken cancellationToken = default)
     {
         ValidateApiKey(apiKey);
-        var endpoint = new Uri(CreateBaseUrl(region, workspaceId), "models");
+        var allModels = new List<ApiModelDescriptor>();
+        for (var page = 1; page <= 100; page++)
+        {
+            var (models, total) = await GetModelPageAsync(apiKey, region, workspaceId, page, cancellationToken);
+            allModels.AddRange(models);
+            if (total is null || allModels.Count >= total)
+            {
+                return allModels.Where(item => item.Id.StartsWith("qwen", StringComparison.OrdinalIgnoreCase))
+                    .DistinctBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(item => item.IsSnapshot).ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase).ToArray();
+            }
+            if (models.Count == 0)
+            {
+                throw InvalidResponse("千问模型列表分页不完整，请稍后重试。");
+            }
+        }
+        throw InvalidResponse("千问模型列表分页超出范围。");
+    }
+
+    private async Task<(IReadOnlyList<ApiModelDescriptor> Models, int? Total)> GetModelPageAsync(
+        string apiKey, QwenRegion region, string? workspaceId, int page, CancellationToken cancellationToken)
+    {
+        var baseUrl = CreateBaseUrl(region, workspaceId);
+        var nativeEndpoint = new Uri(baseUrl, "/api/v1/models");
+        var endpoint = new Uri(nativeEndpoint +
+            $"?providers=qwen&capabilities=TG&page_no={page}&page_size=100");
         using var request = CreateRequest(HttpMethod.Get, endpoint, apiKey);
-        using var response = await SendAsync(request, cancellationToken);
+        using var response = await SendModelListAsync(request, baseUrl, page, apiKey, cancellationToken);
         var payload = await ReadPayloadAsync(response, cancellationToken);
 
         try
         {
             using var document = JsonDocument.Parse(payload);
-            if (document.RootElement.ValueKind != JsonValueKind.Object ||
-                !document.RootElement.TryGetProperty("data", out var data) ||
-                data.ValueKind != JsonValueKind.Array)
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("success", out var success) &&
+                success.ValueKind == JsonValueKind.False)
+            {
+                throw InvalidResponse("千问官方接口未能完成模型查询，请稍后重试。");
+            }
+            JsonElement data;
+            int? total = null;
+            var output = default(JsonElement);
+            var native = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("output", out output);
+            if (native)
+            {
+                if (output.ValueKind != JsonValueKind.Object ||
+                    !output.TryGetProperty("models", out data) || data.ValueKind != JsonValueKind.Array ||
+                    !output.TryGetProperty("total", out var count) || !count.TryGetInt32(out var number) || number < 0)
+                {
+                    throw InvalidResponse("千问模型列表响应格式无效。");
+                }
+                total = number;
+            }
+            else if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("data", out data) || data.ValueKind != JsonValueKind.Array)
             {
                 throw InvalidResponse("千问模型列表响应格式无效。");
             }
 
-            return data.EnumerateArray()
-                .Select(ReadModelId)
-                .Where(id => id.StartsWith("qwen", StringComparison.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(id => new ApiModelDescriptor
-                {
-                    Id = id,
-                    DisplayName = id,
-                    IsSnapshot = IsSnapshot(id)
-                })
-                .OrderBy(item => item.IsSnapshot)
-                .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            var models = data.EnumerateArray()
+                .Select(item => ModelMetadataReader.Qwen(item, native ? RequiredString(item, "model") : ReadModelId(item)))
                 .ToArray();
+            return (models, total);
         }
         catch (QwenApiException)
         {
@@ -168,6 +203,22 @@ public sealed class QwenApiClient : IQwenApiClient
 
     private static Uri CreateBaseUrl(QwenRegion region, string? workspaceId) =>
         QwenRegions.Get(region).CreateBaseUrl(workspaceId);
+
+    private async Task<HttpResponseMessage> SendModelListAsync(
+        HttpRequestMessage request, Uri baseUrl, int page, string apiKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await SendAsync(request, cancellationToken);
+        }
+        catch (QwenApiException exception) when (exception.StatusCode == 404 && page == 1 &&
+            request.RequestUri!.AbsolutePath == "/api/v1/models")
+        {
+            // Older regional deployments still expose the compatible-mode catalog.
+            using var fallback = CreateRequest(HttpMethod.Get, new Uri(baseUrl, "models"), apiKey);
+            return await SendAsync(fallback, cancellationToken);
+        }
+    }
 
     private static HttpRequestMessage CreateRequest(HttpMethod method, Uri endpoint, string apiKey)
     {
@@ -331,12 +382,6 @@ public sealed class QwenApiClient : IQwenApiClient
 
         throw InvalidResponse($"千问响应字段 {propertyName} 不是有效整数。");
     }
-
-    private static bool IsSnapshot(string model) =>
-        System.Text.RegularExpressions.Regex.IsMatch(
-            model,
-            @"-\d{4}-\d{2}-\d{2}(?:$|-)",
-            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private static void ValidateApiKey(string apiKey)
     {

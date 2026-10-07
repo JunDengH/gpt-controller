@@ -59,7 +59,8 @@ public partial class ApiModelSelectionDialog : Window
     private bool FilterModel(object item) =>
         item is ModelListItem model &&
         (string.IsNullOrWhiteSpace(SearchTextBox.Text) ||
-         model.Id.Contains(SearchTextBox.Text.Trim(), StringComparison.OrdinalIgnoreCase));
+         model.Id.Contains(SearchTextBox.Text.Trim(), StringComparison.OrdinalIgnoreCase) ||
+         model.DisplayName.Contains(SearchTextBox.Text.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private void Search_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
@@ -117,12 +118,25 @@ public partial class ApiModelSelectionDialog : Window
         {
             _models.Add(new ModelListItem(
                 model.Id,
+                model.EffectiveDisplayName,
+                DescribeMetadata(model),
                 model.IsSnapshot,
                 string.Equals(model.Id, _currentModel, StringComparison.Ordinal)));
         }
 
         ResultCountText.Text = $"{_models.Count} 个模型";
     }
+
+    private static string DescribeMetadata(ApiModelDescriptor model) => string.Join(" · ",
+        new[]
+        {
+            model.Id,
+            model.ContextWindowTokens is { } context ? $"上下文 {context:N0}" : null,
+            model.MaxOutputTokens is { } output ? $"输出上限 {output:N0}" : null,
+            model.InputModalities.Contains("image") ? "支持图像输入" : null,
+            model.Features.Contains("function-calling") ? "工具调用" : null,
+            model.ReasoningEfforts.Count > 0 ? "推理 " + string.Join(" / ", model.ReasoningEfforts) : null
+        }.Where(value => !string.IsNullOrWhiteSpace(value)));
 
     private void UpdateState()
     {
@@ -159,5 +173,5 @@ public partial class ApiModelSelectionDialog : Window
         }
     }
 
-    private sealed record ModelListItem(string Id, bool IsSnapshot, bool IsCurrent);
+    private sealed record ModelListItem(string Id, string DisplayName, string MetadataText, bool IsSnapshot, bool IsCurrent);
 }

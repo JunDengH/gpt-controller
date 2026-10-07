@@ -32,6 +32,8 @@
   <ItemGroup>
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.png" />
+    <Resource Include="Assets\Providers\*.png" />
+    <None Update="Assets\Providers\LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

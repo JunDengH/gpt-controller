@@ -16,6 +16,12 @@ public sealed record ApiModelDescriptor
     public required string Id { get; init; }
     public string DisplayName { get; init; } = string.Empty;
     public bool IsSnapshot { get; init; }
+    public int? ContextWindowTokens { get; init; }
+    public int? MaxOutputTokens { get; init; }
+    public IReadOnlyList<string> InputModalities { get; init; } = [];
+    public IReadOnlyList<string> ReasoningEfforts { get; init; } = [];
+    public string? DefaultReasoningEffort { get; init; }
+    public IReadOnlyList<string> Features { get; init; } = [];
 
     public string EffectiveDisplayName => string.IsNullOrWhiteSpace(DisplayName)
         ? Id
@@ -32,6 +38,7 @@ public sealed record ApiProviderDefinition
     public required string Model { get; init; }
     public IReadOnlyList<ApiModelDescriptor> Models { get; init; } = [];
     public bool SupportsReasoning { get; init; }
+    public string? DefaultReasoningEffort { get; init; }
     public bool SupportsParallelToolCalls { get; init; }
     public bool SupportsSearch { get; init; }
     public int ConservativeContextWindow { get; init; } = 32_768;

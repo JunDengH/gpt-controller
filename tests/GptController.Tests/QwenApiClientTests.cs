@@ -28,7 +28,7 @@ public sealed class QwenApiClientTests
     public void WorkspaceRegionRejectsUnsafeOrMissingWorkspaceId()
     {
         Assert.Throws<ArgumentException>(() =>
-            QwenRegions.Get(QwenRegion.Beijing).CreateBaseUrl(null));
+            QwenRegions.Get(QwenRegion.Tokyo).CreateBaseUrl(null));
         Assert.Throws<ArgumentException>(() =>
             QwenRegions.Get(QwenRegion.Tokyo).CreateBaseUrl("bad.example.com"));
     }
@@ -58,8 +58,8 @@ public sealed class QwenApiClientTests
             "workspace-a");
 
         Assert.Equal(
-            "https://workspace-a.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/models",
-            handler.RequestUri?.AbsoluteUri);
+            "/api/v1/models",
+            handler.RequestUri?.AbsolutePath);
         Assert.Equal(ApiKey, handler.AuthorizationParameter);
         Assert.Equal(
             ["qwen3-coder-plus", "QWEN3.8-MAX", "qwen3-plus-2026-07-28"],

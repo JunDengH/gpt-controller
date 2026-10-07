@@ -17,6 +17,7 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private HttpClient? _deepSeekHttpClient;
     private HttpClient? _qwenHttpClient;
+    private HttpClient? _accountDetailsHttpClient;
 
     public bool IsExiting { get; private set; }
 
@@ -89,7 +90,13 @@ public partial class App : Application
             var vault = new ProfileVault(paths);
             var settingsService = new SettingsService(paths);
             var configService = new CodexConfigService(paths);
-            var metadataService = new AccountMetadataService();
+            _accountDetailsHttpClient = new HttpClient(new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false
+            })
+            { Timeout = TimeSpan.FromSeconds(8) };
+            var metadataService = new AccountMetadataService(new ChatGptAccountDetailsClient(_accountDetailsHttpClient));
             var quotaParser = new QuotaParser();
             var locator = new CodexLocator(paths);
             var appServerFactory = new CodexAppServerClientFactory();
@@ -188,8 +195,85 @@ public partial class App : Application
                 _mainWindow.Width = 960;
                 _mainWindow.Height = 680;
             }
+            if (isUiPreview && e.Args.Contains("--reference-preview"))
+            {
+                _mainWindow.Width = 1490;
+                _mainWindow.Height = 1056;
+            }
 
             MainWindow = _mainWindow;
+            var renderIndex = Array.IndexOf(e.Args, "--render-preview");
+            if (isUiPreview && renderIndex >= 0 && renderIndex + 1 < e.Args.Length)
+            {
+                await _viewModel.InitializeAsync();
+                if (e.Args.Contains("--empty-preview"))
+                {
+                    _viewModel.Accounts.Clear();
+                    _viewModel.NotifyConnectionsChanged();
+                }
+                if (e.Args.Contains("--settings-preview"))
+                {
+                    _viewModel.ShowSettingsCommand.Execute(null);
+                }
+                var size = new Size(_mainWindow.Width, _mainWindow.Height);
+                _mainWindow.WindowStartupLocation = WindowStartupLocation.Manual;
+                _mainWindow.Left = -10000;
+                _mainWindow.Top = -10000;
+                _mainWindow.ShowActivated = false;
+                _mainWindow.Show();
+                _mainWindow.Measure(size);
+                _mainWindow.Arrange(new Rect(size));
+                _mainWindow.UpdateLayout();
+                await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                if (e.Args.Contains("--exercise-ledger"))
+                {
+                    var ledger = (System.Windows.Controls.ListBox)_mainWindow.FindName("ConnectionLedger");
+                    var title = (System.Windows.Controls.TextBlock)_mainWindow.FindName("InspectorTitle");
+                    var original = _viewModel.SelectedConnection;
+                    foreach (var connection in _viewModel.Accounts.ToArray())
+                    {
+                        ledger.SelectedItem = connection;
+                        _mainWindow.UpdateLayout();
+                        if (_viewModel.SelectedConnection != connection || title.Text != connection.LedgerName)
+                            throw new InvalidOperationException("The ledger selection did not update the inspector.");
+                    }
+                    ledger.SelectedItem = original;
+                    _viewModel.ShowSettingsCommand.Execute(null);
+                    _mainWindow.UpdateLayout();
+                    if (((FrameworkElement)_mainWindow.FindName("SettingsPage")).Visibility != Visibility.Visible)
+                        throw new InvalidOperationException("The settings navigation did not update the page.");
+                    _viewModel.ShowAccountsCommand.Execute(null);
+                    _mainWindow.UpdateLayout();
+                    await File.WriteAllTextAsync(e.Args[renderIndex + 1] + ".interaction.txt",
+                        $"Passed {_viewModel.Accounts.Count} ledger selections and settings navigation.\n");
+                }
+                System.Windows.Media.Visual previewVisual = (System.Windows.Media.Visual)_mainWindow.Content;
+                if (e.Args.Contains("--models-preview"))
+                {
+                    var connection = _viewModel.Accounts.First(account => account.IsDeepSeek).DeepSeekProfile!;
+                    var modelDialog = new ApiModelSelectionDialog("DeepSeek API", connection.Models, connection.Model, true);
+                    modelDialog.WindowStartupLocation = WindowStartupLocation.Manual;
+                    modelDialog.Left = -10000;
+                    modelDialog.Top = -10000;
+                    modelDialog.ShowActivated = false;
+                    modelDialog.Show();
+                    modelDialog.UpdateLayout();
+                    await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    size = new Size(modelDialog.ActualWidth, modelDialog.ActualHeight);
+                    previewVisual = (System.Windows.Media.Visual)modelDialog.Content;
+                }
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    (int)size.Width, (int)size.Height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(previewVisual);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                using (var output = File.Create(Path.GetFullPath(e.Args[renderIndex + 1])))
+                {
+                    encoder.Save(output);
+                }
+                ExitApplication();
+                return;
+            }
             _trayIcon = new TrayIconService(
                 ShowMainWindow,
                 ExitApplication,
@@ -206,6 +290,14 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
+            var renderIndex = Array.IndexOf(e.Args, "--render-preview");
+            if (isUiPreview && renderIndex >= 0 && renderIndex + 1 < e.Args.Length)
+            {
+                await File.WriteAllTextAsync(e.Args[renderIndex + 1] + ".error.txt", exception.ToString());
+                IsExiting = true;
+                Shutdown(1);
+                return;
+            }
             new DialogService().Error(
                 "GPT Controller 启动失败",
                 exception.Message);
@@ -372,6 +464,8 @@ public partial class App : Application
         _deepSeekHttpClient = null;
         _qwenHttpClient?.Dispose();
         _qwenHttpClient = null;
+        _accountDetailsHttpClient?.Dispose();
+        _accountDetailsHttpClient = null;
         _singleInstance?.Dispose();
         _singleInstance = null;
         base.OnExit(e);

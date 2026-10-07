@@ -16,7 +16,7 @@ public partial class DeepSeekConnectionDialog : Window
         _hasExistingKey = hasExistingKey;
         InitializeComponent();
         NicknameTextBox.Text = string.IsNullOrWhiteSpace(nickname)
-            ? "DeepSeek V4"
+            ? "DeepSeek"
             : nickname;
         if (hasExistingKey)
         {

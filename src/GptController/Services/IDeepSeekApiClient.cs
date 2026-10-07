@@ -4,6 +4,10 @@ namespace GptController.Services;
 
 public interface IDeepSeekApiClient
 {
+    Task<IReadOnlyList<ApiModelDescriptor>> GetModelsAsync(
+        string apiKey,
+        CancellationToken cancellationToken = default);
+
     Task<DeepSeekBalanceSnapshot> GetBalanceAsync(
         string apiKey,
         CancellationToken cancellationToken = default);

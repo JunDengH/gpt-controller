@@ -7,7 +7,8 @@ public sealed record AccountReadMetadata(
     string? PlanType,
     string? AccountId = null,
     AccountWorkspaceKind? WorkspaceKind = null,
-    string? WorkspaceName = null);
+    string? WorkspaceName = null,
+    bool HasLiveAccountDetails = false);
 
 public enum AccountWorkspaceKind
 {
@@ -19,10 +20,64 @@ public sealed record ResolvedAccountMetadata(
     string Email,
     string AccountId,
     MembershipPlan MembershipPlan,
-    AccountOwnership Ownership);
+    AccountOwnership Ownership,
+    string? RawPlanType = null,
+    bool AccountMetadataVerified = false,
+    string? AccountMetadataErrorCode = null);
 
 public sealed class AccountMetadataService
 {
+    private readonly IChatGptAccountDetailsClient? _detailsClient;
+
+    public AccountMetadataService(IChatGptAccountDetailsClient? detailsClient = null) => _detailsClient = detailsClient;
+
+    public async Task<ResolvedAccountMetadata> ResolveAsync(
+        AuthClaims claims, string? accessToken, string? quotaPlanType = null,
+        AccountReadMetadata? accountRead = null, AccountProfile? cached = null,
+        CancellationToken cancellationToken = default)
+    {
+        var expectedId = claims.AccountId ?? accountRead?.AccountId ?? cached?.AccountId;
+        if (!string.IsNullOrWhiteSpace(claims.AccountId) && !string.IsNullOrWhiteSpace(accountRead?.AccountId) &&
+            !string.Equals(claims.AccountId, accountRead.AccountId, StringComparison.OrdinalIgnoreCase))
+            return Resolve(claims, quotaPlanType, accountRead, cached);
+        string? errorCode = null;
+        if (_detailsClient is not null && !string.IsNullOrWhiteSpace(accessToken) && !string.IsNullOrWhiteSpace(expectedId))
+        {
+            try
+            {
+                var details = await _detailsClient.ReadAsync(accessToken, expectedId, cancellationToken);
+                accountRead = (accountRead ?? new AccountReadMetadata(null, null)) with
+                {
+                    AccountId = details.AccountId,
+                    PlanType = details.PlanType ?? accountRead?.PlanType,
+                    WorkspaceKind = details.WorkspaceKind ?? accountRead?.WorkspaceKind,
+                    WorkspaceName = details.WorkspaceName ?? accountRead?.WorkspaceName,
+                    HasLiveAccountDetails = true
+                };
+            }
+            catch (ChatGptAccountDetailsException exception)
+            {
+                errorCode = exception.ErrorCode;
+                if (exception.PartialDetails is { } partial &&
+                    string.Equals(partial.AccountId, expectedId, StringComparison.OrdinalIgnoreCase))
+                    accountRead = (accountRead ?? new AccountReadMetadata(null, null)) with
+                    {
+                        AccountId = partial.AccountId,
+                        PlanType = partial.PlanType ?? accountRead?.PlanType,
+                        WorkspaceKind = partial.WorkspaceKind ?? accountRead?.WorkspaceKind,
+                        WorkspaceName = partial.WorkspaceName ?? accountRead?.WorkspaceName,
+                        HasLiveAccountDetails = true
+                    };
+            }
+        }
+        var resolved = Resolve(claims, quotaPlanType, accountRead, cached);
+        return resolved with
+        {
+            AccountMetadataVerified = accountRead?.HasLiveAccountDetails == true || cached?.AccountMetadataVerified == true,
+            AccountMetadataErrorCode = errorCode
+        };
+    }
+
     public ResolvedAccountMetadata Resolve(
         AuthClaims claims,
         string? quotaPlanType = null,
@@ -43,19 +98,17 @@ public sealed class AccountMetadataService
             FirstNonEmpty(accountRead?.Email, claims.Email, cachedForAccount?.Email)
             ?? "未知邮箱";
 
-        var remotePlanTypes = new[]
-        {
-            quotaPlanType,
-            accountRead?.PlanType,
-            claims.PlanType
-        };
-        var plan = FirstRecognizedPlan(remotePlanTypes);
-        if (plan == MembershipPlan.Unknown &&
-            remotePlanTypes.All(string.IsNullOrWhiteSpace) &&
-            cachedForAccount is not null)
-        {
-            plan = NormalizePlan(ToRawPlan(cachedForAccount.MembershipPlan));
-        }
+        var remotePlanTypes = accountRead?.HasLiveAccountDetails == true
+            ? new[] { accountRead.PlanType, quotaPlanType, claims.PlanType }
+            : new[] { quotaPlanType, accountRead?.PlanType, claims.PlanType };
+        remotePlanTypes = remotePlanTypes.Select(value =>
+            string.Equals(value, "unknown", StringComparison.OrdinalIgnoreCase) ? null : value).ToArray();
+        // A fresh, unfamiliar plan must not be overwritten by an older token/cache.
+        var rawPlan = FirstNonEmpty(remotePlanTypes) ?? cachedForAccount?.RawPlanType
+            ?? (cachedForAccount is null ? null : ToRawPlan(cachedForAccount.MembershipPlan));
+        var plan = NormalizePlan(rawPlan);
+        if (rawPlan is null && cachedForAccount is not null)
+            plan = cachedForAccount.MembershipPlan;
 
         var ownership = ResolveOwnership(
             plan,
@@ -63,7 +116,8 @@ public sealed class AccountMetadataService
             accountId,
             accountRead,
             cachedForAccount);
-        return new ResolvedAccountMetadata(email, accountId, plan, ownership);
+        return new ResolvedAccountMetadata(email, accountId, plan, ownership, rawPlan,
+            accountRead?.HasLiveAccountDetails == true || cachedForAccount?.AccountMetadataVerified == true);
     }
 
     public MembershipPlan NormalizePlan(string? rawPlan)
@@ -85,10 +139,13 @@ public sealed class AccountMetadataService
         return normalized switch
         {
             "free" or "guest" => MembershipPlan.Free,
+            "go" or "chatgpt go" => MembershipPlan.Go,
             "plus" or "chatgpt plus" => MembershipPlan.Plus,
-            "prolite" or "pro lite" or "pro 5x" => MembershipPlan.Pro5x,
-            "pro" or "pro 20x" => MembershipPlan.Pro20x,
-            "team" or "chatgpt team" => MembershipPlan.Team,
+            "prolite" or "pro lite" or "pro 5x" or "pro5x" or "pro 100" or "pro100" or "chatgptprolite" => MembershipPlan.Pro5x,
+            "pro" or "chatgpt pro" or "pro 10x" or "pro10x" or "pro 200" or "pro200" or "chatgptpro" => MembershipPlan.Pro10x,
+            "promax" or "pro max" or "pro 25x" or "pro25x" or "pro 500" or "pro500" or "chatgptpromax" => MembershipPlan.Pro25x,
+            "pro 20x" => MembershipPlan.Pro20x,
+            "team" or "chatgpt team" => MembershipPlan.Business,
             "business" or
                 "team business" or
                 "teambusiness" or
@@ -104,7 +161,7 @@ public sealed class AccountMetadataService
                 "enterprise cbp automation" or
                 "enterprise cbp usage based" =>
                 MembershipPlan.Enterprise,
-            "education" or "edu" or "chatgpt edu" => MembershipPlan.Edu,
+            "education" or "edu" or "edu plus" or "edu pro" or "chatgpt edu" => MembershipPlan.Edu,
             _ => MembershipPlan.Unknown
         };
     }
@@ -189,30 +246,19 @@ public sealed class AccountMetadataService
     private static string? FirstKnownOrganizationName(params string?[] candidates) =>
         candidates.FirstOrDefault(AccountOwnership.HasKnownOrganizationName)?.Trim();
 
-    private MembershipPlan FirstRecognizedPlan(IEnumerable<string?> candidates)
-    {
-        foreach (var candidate in candidates)
-        {
-            var plan = NormalizePlan(candidate);
-            if (plan != MembershipPlan.Unknown)
-            {
-                return plan;
-            }
-        }
-
-        return MembershipPlan.Unknown;
-    }
-
     private static string? FirstNonEmpty(params string?[] candidates) =>
         candidates.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static string? ToRawPlan(MembershipPlan plan) => plan switch
     {
         MembershipPlan.Free => "free",
+        MembershipPlan.Go => "go",
         MembershipPlan.Plus => "plus",
         MembershipPlan.Pro5x => "prolite",
-        MembershipPlan.Pro20x => "pro",
-        MembershipPlan.Team => "team",
+        MembershipPlan.Pro10x => "pro",
+        MembershipPlan.Pro25x => "promax",
+        MembershipPlan.Pro or MembershipPlan.Pro20x => null,
+        MembershipPlan.Team => "business",
         MembershipPlan.Business => "business",
         MembershipPlan.Enterprise => "enterprise",
         MembershipPlan.Edu => "edu",

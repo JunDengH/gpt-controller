@@ -67,8 +67,8 @@ public sealed class UninstallCodexConfigRestoreRunnerTests : IDisposable
         await fixture.ConfigService.ApplyAsync();
         var conflicted = (await File.ReadAllTextAsync(fixture.Paths.CodexConfigFile))
             .Replace(
-                "model_reasoning_effort = \"high\"",
-                "model_reasoning_effort = \"low\"",
+                "model = \"deepseek-flash\"",
+                "model = \"external-model\"",
                 StringComparison.Ordinal);
         await File.WriteAllTextAsync(fixture.Paths.CodexConfigFile, conflicted);
 

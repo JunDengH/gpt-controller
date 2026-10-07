@@ -36,13 +36,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isBusy;
     private bool _isRefreshingAll;
     private bool _isSettingsPage;
-    private int _quotaRefreshMinutes = 15;
+    private int _quotaRefreshMinutes = AppSettings.DefaultRefreshMinutes;
     private bool _closeToTray = true;
     private bool _startMinimized;
     private string _statusMessage = "准备就绪";
     private CancellationTokenSource? _refreshCts;
     private Task _refreshTask = Task.CompletedTask;
     private bool _disposed;
+    private AccountCardViewModel? _selectedConnection;
+    private Guid? _selectedConnectionId;
 
     public MainWindowViewModel(
         ProfileVault vault,
@@ -146,6 +148,27 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<AccountCardViewModel> Accounts { get; } = [];
 
+    public AccountCardViewModel? SelectedConnection
+    {
+        get => _selectedConnection;
+        set
+        {
+            if (SetProperty(ref _selectedConnection, value))
+            {
+                // Collection reloads can temporarily clear the ListBox selection.
+                if (value is not null) _selectedConnectionId = value.Id;
+                OnPropertyChanged(nameof(HasSelectedConnection));
+            }
+        }
+    }
+
+    public bool HasSelectedConnection => SelectedConnection is not null;
+    public AccountCardViewModel? CurrentConnection => Accounts.FirstOrDefault(account => account.IsActive);
+    public bool HasCurrentConnection => CurrentConnection is not null;
+    public bool HasConnections => Accounts.Count > 0;
+    public string LatestSyncText => Accounts.Select(account => account.LastSyncedAt).Max() is { } synced
+        ? $"{synced.ToLocalTime():HH:mm} 更新" : "等待同步";
+
     public AsyncRelayCommand AddAccountCommand { get; }
     public AsyncRelayCommand ImportCurrentCommand { get; }
     public AsyncRelayCommand ConfigureDeepSeekCommand { get; }
@@ -189,7 +212,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public int QuotaRefreshMinutes
     {
         get => _quotaRefreshMinutes;
-        set => SetProperty(ref _quotaRefreshMinutes, Math.Clamp(value, 5, 120));
+        set => SetProperty(ref _quotaRefreshMinutes, Math.Clamp(value, 1, 120));
     }
 
     public bool CloseToTray
@@ -318,6 +341,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 _quotaTimer.Start();
             }
         }
+        if (!_disposed && !HasPendingAccountRecovery)
+        {
+            await RefreshAllAsync(silent: true, QuotaRefreshReason.Automatic);
+        }
     }
 
     private async Task AddAccountAsync()
@@ -365,7 +392,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         var existingCard = Accounts.FirstOrDefault(item => item.IsDeepSeek);
         var input = _dialogs.PromptDeepSeekConnection(
-            existingCard?.Nickname ?? "DeepSeek V4",
+            existingCard?.Nickname ?? "DeepSeek",
             existingCard is not null);
         if (input is null)
         {
@@ -415,10 +442,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             var balance = await _deepSeekApiClient.GetBalanceAsync(
                 apiKey,
                 _lifetimeCts.Token);
+            var models = await _deepSeekApiClient.GetModelsAsync(apiKey, _lifetimeCts.Token);
+            if (models.Count == 0)
+            {
+                throw new InvalidOperationException("官方接口未返回可用的 DeepSeek 模型。");
+            }
             var now = DateTimeOffset.UtcNow;
             var connection = (existingCard?.DeepSeekProfile ?? new DeepSeekConnection()) with
             {
                 Nickname = input.Nickname,
+                Model = existingCard?.DeepSeekProfile?.Model ??
+                    (models.FirstOrDefault(item => item.Id == DeepSeekDefaults.Model) ?? models[0]).Id,
+                Models = models,
+                ModelsFetchedAt = now,
+                IsModelCacheStale = false,
                 LastValidatedAt = now,
                 IsAvailable = balance.IsAvailable,
                 Status = balance.IsAvailable
@@ -658,7 +695,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             var apiKey = await _deepSeekCredentialStore.ReadAsync(cancellationToken);
             var balance = await _deepSeekApiClient.GetBalanceAsync(apiKey, cancellationToken);
-            var updated = current with
+            current = current with
             {
                 LastValidatedAt = DateTimeOffset.UtcNow,
                 IsAvailable = balance.IsAvailable,
@@ -670,15 +707,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 CnyBalance = ReadBalance(balance, "CNY"),
                 UsdBalance = ReadBalance(balance, "USD")
             };
-            updated = await _deepSeekStore.SaveAsync(
-                updated,
+            current = await _deepSeekStore.SaveAsync(
+                current,
                 cancellationToken: cancellationToken);
-            account.UpdateDeepSeek(updated);
+            account.UpdateDeepSeek(current);
+            await FetchAndStoreDeepSeekModelsAsync(account, apiKey, cancellationToken);
         }
         catch (DeepSeekApiException exception)
         {
             var failed = current with
             {
+                IsModelCacheStale = current.Models.Count > 0,
                 Status = MapConnectionStatus(exception.ErrorKind),
                 ErrorCode = exception.ErrorKind.ToString(),
                 IsAvailable = false
@@ -1017,19 +1056,54 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task SelectApiModelAsync(AccountCardViewModel account)
     {
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            await SelectApiModelCoreAsync(account);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task SelectApiModelCoreAsync(AccountCardViewModel account)
+    {
         if (!account.IsApiProvider)
         {
             return;
         }
 
         var models = account.IsDeepSeek
-            ? DeepSeekDefaults.SupportedModels.Select(item => new ApiModelDescriptor
-            {
-                Id = item,
-                DisplayName = DeepSeekDefaults.GetModelDisplayName(item)
-            }).ToArray()
+            ? account.DeepSeekProfile!.Models
             : account.QwenProfile!.Models;
         string? qwenApiKey = null;
+        string? deepSeekApiKey = null;
+
+        if (!_isUiPreview && account.IsDeepSeek)
+        {
+            try
+            {
+                deepSeekApiKey = await _deepSeekCredentialStore.ReadAsync(_lifetimeCts.Token);
+                models = await FetchAndStoreDeepSeekModelsAsync(account, deepSeekApiKey, _lifetimeCts.Token);
+            }
+            catch (DeepSeekApiException exception)
+            {
+                if (models.Count == 0)
+                {
+                    _dialogs.Error("模型选择", exception.Message);
+                    return;
+                }
+                StatusMessage = "模型获取失败，正在显示上次缓存";
+                _dialogs.Info("使用缓存模型", exception.Message);
+            }
+            catch (Exception exception)
+            {
+                _dialogs.Error("模型选择", RedactingLogger.Redact(exception.Message));
+                return;
+            }
+        }
 
         if (!_isUiPreview && account.IsQwen)
         {
@@ -1078,13 +1152,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             account.IsDeepSeek ? "DeepSeek API" : "千问 API",
             models,
             currentModel,
-            requiresPaidValidation: account.IsQwen,
+            requiresPaidValidation: true,
             account.IsQwen && !_isUiPreview
                 ? cancellationToken => FetchAndStoreQwenModelsAsync(
                     account,
                     qwenApiKey!,
                     cancellationToken)
-                : _ => Task.FromResult<IReadOnlyList<ApiModelDescriptor>>(models));
+                : account.IsDeepSeek && !_isUiPreview
+                    ? cancellationToken => FetchAndStoreDeepSeekModelsAsync(account, deepSeekApiKey!, cancellationToken)
+                    : _ => Task.FromResult<IReadOnlyList<ApiModelDescriptor>>(models));
         if (selected is null || string.Equals(selected, currentModel, StringComparison.Ordinal))
         {
             return;
@@ -1126,6 +1202,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             await CancelAndDrainRefreshesAsync();
             DateTimeOffset? validatedAt = null;
+            if (account.IsDeepSeek)
+            {
+                StatusMessage = $"正在验证 {selected} 的 Responses 兼容性…";
+                _ = await _deepSeekApiClient.TestResponseAsync(deepSeekApiKey!, selected, _lifetimeCts.Token);
+                validatedAt = DateTimeOffset.UtcNow;
+            }
             if (account.IsQwen)
             {
                 var qwen = account.QwenProfile!;
@@ -1176,6 +1258,39 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task<IReadOnlyList<ApiModelDescriptor>> FetchAndStoreDeepSeekModelsAsync(
+        AccountCardViewModel account,
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        var connection = account.DeepSeekProfile!;
+        try
+        {
+            var models = await _deepSeekApiClient.GetModelsAsync(apiKey, cancellationToken);
+            var available = models.Any(item => item.Id == connection.Model);
+            var updated = await _deepSeekStore.SaveAsync(connection with
+            {
+                Models = models,
+                ModelsFetchedAt = DateTimeOffset.UtcNow,
+                IsModelCacheStale = false,
+                Status = !available ? DeepSeekConnectionStatus.Unavailable
+                    : connection.IsAvailable == true ? DeepSeekConnectionStatus.Available : connection.Status,
+                ErrorCode = available ? null : "selected_model_missing"
+            }, cancellationToken: cancellationToken);
+            account.UpdateDeepSeek(updated);
+            return models;
+        }
+        catch (DeepSeekApiException)
+        {
+            var failed = await _deepSeekStore.SaveAsync(connection with
+            {
+                IsModelCacheStale = connection.Models.Count > 0
+            }, cancellationToken: cancellationToken);
+            account.UpdateDeepSeek(failed);
+            throw;
+        }
+    }
+
     private async Task<IReadOnlyList<ApiModelDescriptor>> FetchAndStoreQwenModelsAsync(
         AccountCardViewModel account,
         string apiKey,
@@ -1183,34 +1298,48 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         var qwen = account.QwenProfile
             ?? throw new InvalidOperationException("千问连接不存在。");
-        var models = await _qwenApiClient!.GetModelsAsync(
-            apiKey,
-            qwen.Region,
-            qwen.WorkspaceId,
-            cancellationToken);
-        var updated = await _qwenStore!.SaveAsync(
-            qwen with
+        try
+        {
+            var models = await _qwenApiClient!.GetModelsAsync(
+                apiKey,
+                qwen.Region,
+                qwen.WorkspaceId,
+                cancellationToken);
+            var updated = await _qwenStore!.SaveAsync(
+                qwen with
+                {
+                    Models = models,
+                    ModelsFetchedAt = DateTimeOffset.UtcNow,
+                    IsModelCacheStale = false,
+                    Status = models.Any(item => string.Equals(
+                        item.Id,
+                        qwen.Model,
+                        StringComparison.Ordinal))
+                        ? ApiConnectionStatus.Available
+                        : ApiConnectionStatus.Unavailable,
+                    ErrorCode = models.Any(item => string.Equals(
+                        item.Id,
+                        qwen.Model,
+                        StringComparison.Ordinal))
+                        ? null
+                        : "selected_model_missing"
+                },
+                cancellationToken: cancellationToken);
+            account.UpdateQwen(updated);
+            NotifyConnectionsChanged();
+            return models;
+        }
+        catch (QwenApiException exception)
+        {
+            var failed = await _qwenStore!.SaveAsync(qwen with
             {
-                Models = models,
-                ModelsFetchedAt = DateTimeOffset.UtcNow,
-                IsModelCacheStale = false,
-                Status = models.Any(item => string.Equals(
-                    item.Id,
-                    qwen.Model,
-                    StringComparison.Ordinal))
-                    ? ApiConnectionStatus.Available
-                    : ApiConnectionStatus.Unavailable,
-                ErrorCode = models.Any(item => string.Equals(
-                    item.Id,
-                    qwen.Model,
-                    StringComparison.Ordinal))
-                    ? null
-                    : "selected_model_missing"
-            },
-            cancellationToken: cancellationToken);
-        account.UpdateQwen(updated);
-        NotifyConnectionsChanged();
-        return models;
+                IsModelCacheStale = qwen.Models.Count > 0,
+                Status = MapConnectionStatus(exception.ErrorKind),
+                ErrorCode = exception.ErrorKind.ToString()
+            }, cancellationToken: cancellationToken);
+            account.UpdateQwen(failed);
+            throw;
+        }
     }
 
     private async Task RefreshQwenCoreAsync(
@@ -1484,6 +1613,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _settings = new AppSettings
         {
             QuotaRefreshMinutes = QuotaRefreshMinutes,
+            RefreshPolicyVersion = 2,
             CloseToTray = CloseToTray,
             StartMinimized = StartMinimized
         };
@@ -1525,10 +1655,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             new AccountProfile
             {
                 Nickname = "主账号",
+                Id = new Guid("10000000-0000-4000-8000-000000000001"),
                 Email = "user@example.com",
                 AccountId = "preview-primary",
                 IsActive = true,
-                MembershipPlan = MembershipPlan.Pro20x,
+                MembershipPlan = MembershipPlan.Pro25x,
                 Ownership = AccountOwnership.Personal,
                 Quota = CreatePreviewQuota(
                     86,
@@ -1536,11 +1667,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     now,
                     now.AddHours(3),
                     reset,
-                    QuotaStatus.Fresh)
+                    QuotaStatus.Fresh) with
+                {
+                    FiveHourRemainingPercent = null, FiveHourUsedPercent = null,
+                    FiveHourWindowDurationMinutes = null, FiveHourResetsAt = null,
+                    HasShortWindow = false, HasLongWindow = true
+                }
             },
             new AccountProfile
             {
                 Nickname = "工作账号",
+                Id = new Guid("10000000-0000-4000-8000-000000000002"),
                 Email = "team@example.cn",
                 AccountId = "preview-business",
                 MembershipPlan = MembershipPlan.Business,
@@ -1558,6 +1695,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             new AccountProfile
             {
                 Nickname = "备用账号",
+                Id = new Guid("10000000-0000-4000-8000-000000000003"),
                 Email = "backup@example.com",
                 AccountId = "preview-backup",
                 MembershipPlan = MembershipPlan.Plus,
@@ -1579,7 +1717,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             Accounts.Add(new AccountCardViewModel(profile));
         }
-
+        var orderedPreview = Accounts.OrderBy(account => account.IsApiProvider).ToList();
+        Accounts.Clear();
+        foreach (var card in orderedPreview) Accounts.Add(card);
+        _selectedConnectionId = _selectedConnectionId ?? AccountCardViewModel.DeepSeekCardId;
         NotifyConnectionsChanged();
     }
 
@@ -1727,37 +1868,55 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private static DeepSeekConnection CreatePreviewDeepSeek() => new()
     {
-        Nickname = "DeepSeek V4",
+        Model = "deepseek-flash",
+        Nickname = "DeepSeek",
         KeyLastFour = "8K2Q",
         IsAvailable = true,
         Status = DeepSeekConnectionStatus.Available,
         CnyBalance = 42.80m,
         UsdBalance = 6.25m,
+        Models =
+        [
+            new ApiModelDescriptor
+            {
+                Id = DeepSeekDefaults.FlashModel, DisplayName = "DeepSeek-V4.1-Flash",
+                ContextWindowTokens = 1_048_576, MaxOutputTokens = 393216,
+                InputModalities = ["text", "image"], ReasoningEfforts = ["low", "high", "max"],
+                DefaultReasoningEffort = "high"
+            },
+            new ApiModelDescriptor { Id = DeepSeekDefaults.ProModel, DisplayName = "DeepSeek-V4-Pro", ContextWindowTokens = 1_048_576, MaxOutputTokens = 393216,
+                InputModalities = ["text"], ReasoningEfforts = ["low", "high", "max"], DefaultReasoningEffort = "high" }
+        ],
+        ModelsFetchedAt = DateTimeOffset.Now.AddMinutes(-1),
         LastValidatedAt = DateTimeOffset.Now.AddMinutes(-3)
     };
 
     private static QwenConnection CreatePreviewQwen() => new()
     {
-        Model = "qwen3-coder-plus",
+        Model = "qwen3.7-plus",
         Region = QwenRegion.Beijing,
         WorkspaceId = "workspace-demo",
         KeyLastFour = "QWEN",
         Status = ApiConnectionStatus.Available,
         Models =
         [
-            new ApiModelDescriptor { Id = "qwen3-coder-plus" },
-            new ApiModelDescriptor { Id = "qwen3.8-max" },
-            new ApiModelDescriptor { Id = "qwen3.7-plus" },
-            new ApiModelDescriptor { Id = "qwen3.5-plus" },
-            new ApiModelDescriptor { Id = "qwen3-coder-plus-2026-07-28", IsSnapshot = true }
+            new ApiModelDescriptor { Id = "qwen3.7-plus", ContextWindowTokens = 1_000_000, InputModalities = ["text", "image"] },
+            new ApiModelDescriptor { Id = "qwen3.8-max", ContextWindowTokens = 1_000_000, InputModalities = ["text", "image"] },
+            new ApiModelDescriptor { Id = "qwen3.8-flash", ContextWindowTokens = 1_000_000, InputModalities = ["text", "image"] }
         ],
         ModelsFetchedAt = DateTimeOffset.Now.AddMinutes(-2),
         LastValidatedAt = DateTimeOffset.Now.AddMinutes(-2)
     };
 
-    private void NotifyConnectionsChanged()
+    internal void NotifyConnectionsChanged()
     {
+        SelectedConnection = Accounts.FirstOrDefault(account => account.Id == _selectedConnectionId)
+            ?? CurrentConnection ?? Accounts.FirstOrDefault();
         OnPropertyChanged(nameof(Accounts));
+        OnPropertyChanged(nameof(CurrentConnection));
+        OnPropertyChanged(nameof(HasCurrentConnection));
+        OnPropertyChanged(nameof(HasConnections));
+        OnPropertyChanged(nameof(LatestSyncText));
         OnPropertyChanged(nameof(ChatGptAccounts));
         OnPropertyChanged(nameof(ApiConnections));
         OnPropertyChanged(nameof(DeepSeekMenuLabel));
@@ -1906,9 +2065,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         AccountCardViewModel account,
         QuotaRefreshReason reason) =>
         reason == QuotaRefreshReason.Automatic &&
-        (account.IsQwen ||
-         (!account.IsApiProvider &&
-          QuotaRefreshPolicy.ShouldSkipAutomatic(account.Profile.Quota)));
+        !account.IsApiProvider &&
+        QuotaRefreshPolicy.ShouldSkipAutomatic(account.Profile.Quota);
 
     private sealed class ImmediateProgress<T>(Action<T> report)
         : IProgress<T>

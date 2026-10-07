@@ -285,11 +285,13 @@ public sealed class QuotaService
                 throw new InvalidDataException("额度探测生成了不完整或不匹配的认证文件。");
             }
 
-            var metadata = _metadataService.Resolve(
+            var metadata = await _metadataService.ResolveAsync(
                 finalClaims,
+                finalInfo.AccessToken,
                 quotaResult.PlanType,
                 accountRead,
-                profile);
+                profile,
+                cancellationToken);
             if (!string.Equals(
                     metadata.AccountId,
                     profile.AccountId,
@@ -323,6 +325,9 @@ public sealed class QuotaService
             {
                 Email = metadata.Email,
                 MembershipPlan = metadata.MembershipPlan,
+                RawPlanType = metadata.RawPlanType,
+                AccountMetadataVerified = metadata.AccountMetadataVerified,
+                AccountMetadataErrorCode = metadata.AccountMetadataErrorCode,
                 Ownership = metadata.Ownership,
                 Quota = quotaResult.Snapshot,
                 LastVerifiedAt = DateTimeOffset.UtcNow,
@@ -432,8 +437,8 @@ public sealed class QuotaService
 
         var previous = profile.Quota;
         var failedQuota = previous is
-            { RemainingPercent: not null } or
-            { FiveHourRemainingPercent: not null }
+        { RemainingPercent: not null } or
+        { FiveHourRemainingPercent: not null }
             ? previous with
             {
                 Status = status,

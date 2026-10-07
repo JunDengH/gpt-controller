@@ -14,9 +14,9 @@ public sealed class QwenRefreshPolicyTests
         });
 
     [Fact]
-    public void AutomaticRefreshSkipsQwenWithoutBlockingManualRefresh()
+    public void AutomaticRefreshIncludesQwenModels()
     {
-        Assert.True(MainWindowViewModel.ShouldSkipRefresh(
+        Assert.False(MainWindowViewModel.ShouldSkipRefresh(
             QwenCard,
             QuotaRefreshReason.Automatic));
         Assert.False(MainWindowViewModel.ShouldSkipRefresh(

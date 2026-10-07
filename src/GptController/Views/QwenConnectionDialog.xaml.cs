@@ -41,9 +41,7 @@ public partial class QwenConnectionDialog : Window
             var region = ((QwenRegionDefinition)RegionComboBox.SelectedItem).Region;
             return new(
                 region,
-                QwenRegions.Get(region).RequiresWorkspaceId
-                    ? WorkspaceTextBox.Text.Trim()
-                    : null,
+                string.IsNullOrWhiteSpace(WorkspaceTextBox.Text) ? null : WorkspaceTextBox.Text.Trim(),
                 string.IsNullOrWhiteSpace(ApiKeyPasswordBox.Password)
                     ? null
                     : ApiKeyPasswordBox.Password.Trim());
@@ -71,10 +69,10 @@ public partial class QwenConnectionDialog : Window
             return;
         }
 
-        WorkspaceTextBox.IsEnabled = region.RequiresWorkspaceId;
+        WorkspaceTextBox.IsEnabled = true;
         WorkspaceHintText.Text = region.RequiresWorkspaceId
             ? "必填。可在阿里云百炼控制台的业务空间详情中查看。"
-            : "弗吉尼亚地域使用固定官方端点，无需业务空间 ID。";
+            : "填写可使用业务空间专属域名（官方推荐）；留空使用该地域共享端点。";
         AutomationProperties.SetIsRequiredForForm(
             WorkspaceTextBox,
             region.RequiresWorkspaceId);
@@ -87,7 +85,7 @@ public partial class QwenConnectionDialog : Window
             return;
         }
 
-        var workspaceValid = !region.RequiresWorkspaceId ||
+        var workspaceValid = !region.RequiresWorkspaceId && string.IsNullOrWhiteSpace(WorkspaceTextBox.Text) ||
                              IsWorkspaceIdValid(WorkspaceTextBox.Text);
         SaveButton.IsEnabled = workspaceValid &&
                                (_hasExistingKey ||

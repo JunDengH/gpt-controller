@@ -110,7 +110,7 @@
                                                         Foreground="{StaticResource DeepSeekAccentBrush}"
                                                         Kind="RobotOutline" />
                             <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                <TextBlock FontWeight="SemiBold" Text="DeepSeek V4 Flash / Pro · Responses API" />
+                                <TextBlock FontWeight="SemiBold" Text="官方模型列表 · Responses API" />
                                 <TextBlock Margin="0,3,0,0"
                                            Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="11"
