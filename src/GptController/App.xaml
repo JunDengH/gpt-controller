@@ -4,33 +4,33 @@
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <ResourceDictionary>
-            <Color x:Key="BackgroundColor">#252628</Color>
-            <Color x:Key="TitleBarColor">#202123</Color>
-            <Color x:Key="SurfaceColor">#2B2C2E</Color>
-            <Color x:Key="SurfaceRaisedColor">#313234</Color>
-            <Color x:Key="SurfaceHoverColor">#393A3D</Color>
-            <Color x:Key="BorderColor">#4A4B4F</Color>
-            <Color x:Key="BorderSubtleColor">#3D3E41</Color>
-            <Color x:Key="TextPrimaryColor">#F4F4F5</Color>
-            <Color x:Key="TextSecondaryColor">#B8B9BD</Color>
-            <Color x:Key="TextMutedColor">#9FA0A5</Color>
-            <Color x:Key="AccentColor">#78A7FF</Color>
-            <Color x:Key="AccentHoverColor">#8AB3FF</Color>
-            <Color x:Key="PrimaryColor">#456CCA</Color>
-            <Color x:Key="PrimaryHoverColor">#496FCE</Color>
+            <Color x:Key="BackgroundColor">#171B1D</Color>
+            <Color x:Key="TitleBarColor">#1C2124</Color>
+            <Color x:Key="SurfaceColor">#1B2023</Color>
+            <Color x:Key="SurfaceRaisedColor">#232B2E</Color>
+            <Color x:Key="SurfaceHoverColor">#222D29</Color>
+            <Color x:Key="BorderColor">#3B464B</Color>
+            <Color x:Key="BorderSubtleColor">#30383C</Color>
+            <Color x:Key="TextPrimaryColor">#F0F4F2</Color>
+            <Color x:Key="TextSecondaryColor">#A9B5AE</Color>
+            <Color x:Key="TextMutedColor">#84968D</Color>
+            <Color x:Key="AccentColor">#41C792</Color>
+            <Color x:Key="AccentHoverColor">#60D7A7</Color>
+            <Color x:Key="PrimaryColor">#13794F</Color>
+            <Color x:Key="PrimaryHoverColor">#147F52</Color>
             <Color x:Key="DangerColor">#E48A8A</Color>
-            <Color x:Key="ControlBorderColor">#74757A</Color>
-            <Color x:Key="ControlBorderHoverColor">#8A8B90</Color>
-            <Color x:Key="FocusRingColor">#CCDFFF</Color>
+            <Color x:Key="ControlBorderColor">#536780</Color>
+            <Color x:Key="ControlBorderHoverColor">#687871</Color>
+            <Color x:Key="FocusRingColor">#A3EDD0</Color>
             <Color x:Key="DangerTintColor">#3A3032</Color>
             <Color x:Key="DeepSeekTintColor">#273E3A</Color>
             <Color x:Key="DeepSeekAccentColor">#61D9C3</Color>
-            <Color x:Key="SelectedSurfaceColor">#3F4043</Color>
-            <Color x:Key="NeutralBadgeColor">#353638</Color>
+            <Color x:Key="SelectedSurfaceColor">#213A30</Color>
+            <Color x:Key="NeutralBadgeColor">#2C3438</Color>
             <Color x:Key="NeutralStrongColor">#696A6D</Color>
             <Color x:Key="NeutralIconColor">#D4D5D8</Color>
-            <Color x:Key="CurrentBadgeColor">#626366</Color>
-            <Color x:Key="InfoTintColor">#27313E</Color>
+            <Color x:Key="CurrentBadgeColor">#3D5E94</Color>
+            <Color x:Key="InfoTintColor">#20332C</Color>
             <Color x:Key="SuccessAccentColor">#61D9C3</Color>
             <Color x:Key="SuccessTintColor">#273E3A</Color>
             <Color x:Key="WarningAccentColor">#F2C36B</Color>
@@ -118,6 +118,7 @@
 
             <Style x:Key="RoundedButtonStyle" TargetType="Button">
                 <Setter Property="MinHeight" Value="44" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="Padding" Value="18,0" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                 <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}" />
@@ -133,9 +134,9 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="14"
+                                    CornerRadius="8"
                                     SnapsToDevicePixels="True">
-                                <ContentPresenter HorizontalAlignment="Center"
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center"
                                                   RecognizesAccessKey="True" />
                             </Border>
@@ -180,7 +181,7 @@
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="14">
-                                <ContentPresenter HorizontalAlignment="Center"
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
@@ -264,7 +265,7 @@
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="21">
-                                <ContentPresenter HorizontalAlignment="Center"
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
@@ -307,7 +308,7 @@
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="21">
-                                <ContentPresenter HorizontalAlignment="Center"
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
@@ -543,8 +544,8 @@
 
             <Style x:Key="RoundedProgressBarStyle" TargetType="ProgressBar">
                 <Setter Property="Height" Value="8" />
-                <Setter Property="Foreground" Value="#F1F1F2" />
-                <Setter Property="Background" Value="#48494C" />
+                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Background" Value="{StaticResource BorderSubtleBrush}" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Template">
                     <Setter.Value>

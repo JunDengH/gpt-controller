@@ -16,6 +16,11 @@ public sealed record QuotaSnapshot
     public DateTimeOffset FetchedAt { get; init; }
     public QuotaStatus Status { get; init; } = QuotaStatus.Unavailable;
     public string? ErrorCode { get; init; }
+    public string? CreditBalance { get; init; }
+    public bool? HasCredits { get; init; }
+    public bool? UnlimitedCredits { get; init; }
+    public bool? HasShortWindow { get; init; }
+    public bool? HasLongWindow { get; init; }
 
     public static QuotaSnapshot Unavailable(string? errorCode = null) =>
         new()

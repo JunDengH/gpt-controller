@@ -142,11 +142,12 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock VerticalAlignment="Center"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               FontWeight="SemiBold"
-                                               Text="{Binding Id}"
-                                               TextTrimming="CharacterEllipsis" />
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <TextBlock Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"
+                                                   Text="{Binding DisplayName}" ToolTip="{Binding Id}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11.5" Margin="0,5,0,0"
+                                                   Text="{Binding MetadataText}" ToolTip="{Binding MetadataText}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <Border Margin="0,0,6,0" Padding="7,2"
                                                 Background="{StaticResource InfoTintBrush}"
@@ -191,7 +192,7 @@
                             CornerRadius="10">
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
                                    FontSize="11.5" TextWrapping="Wrap"
-                                   Text="应用前会发送一次最小 Responses Function Call 验证，可能产生少量 Token 费用。验证失败不会改变当前模型。" />
+                                   Text="应用前会发送一次最小 Responses 兼容性验证，可能产生少量 Token 费用。验证失败不会改变当前模型。" />
                     </Border>
                     <StackPanel Grid.Row="4" Margin="0,16,0,0"
                                 HorizontalAlignment="Right" Orientation="Horizontal">

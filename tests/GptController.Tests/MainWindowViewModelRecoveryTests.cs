@@ -185,6 +185,8 @@ public sealed class MainWindowViewModelRecoveryTests : IDisposable
 
     private sealed class SuccessfulDeepSeekApiClient : IDeepSeekApiClient
     {
+        public Task<IReadOnlyList<ApiModelDescriptor>> GetModelsAsync(string apiKey, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ApiModelDescriptor>>([new ApiModelDescriptor { Id = DeepSeekDefaults.Model }]);
         public Task<DeepSeekBalanceSnapshot> GetBalanceAsync(
             string apiKey,
             CancellationToken cancellationToken = default) =>

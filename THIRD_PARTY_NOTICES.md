@@ -19,3 +19,8 @@ implementations informed interoperability behavior:
 
 OpenAI, ChatGPT, and Codex are trademarks of their respective owner. This
 project is not affiliated with or endorsed by OpenAI.
+
+Provider logo assets are from Lobe Icons (`@lobehub/icons-static-png` 1.97.1),
+Copyright (c) 2023 LobeHub, distributed under the MIT License.
+Source: https://github.com/lobehub/lobe-icons
+The license is included at `Assets/Providers/LICENSE`.

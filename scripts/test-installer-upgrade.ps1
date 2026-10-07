@@ -491,9 +491,11 @@ try {
 
     # A managed-field conflict must abort even a fully silent uninstall and
     # leave both the application and helper available for recovery.
-    $conflictedCodexConfig = $appliedCodexConfig.Replace(
-        'model_reasoning_effort = "high"',
-        'model_reasoning_effort = "low"')
+    # Model selection is always managed; reasoning fields depend on capabilities.
+    $conflictedCodexConfig = [regex]::Replace(
+        $appliedCodexConfig,
+        '(?m)^model = "[^"\r\n]+"',
+        'model = "gpt-installer-smoke-conflict"')
     if ($conflictedCodexConfig -ceq $appliedCodexConfig) {
         throw "Could not create the managed-field conflict for uninstall testing."
     }

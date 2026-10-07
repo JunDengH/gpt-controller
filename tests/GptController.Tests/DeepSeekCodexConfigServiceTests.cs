@@ -8,6 +8,28 @@ namespace GptController.Tests;
 public sealed class DeepSeekCodexConfigServiceTests
 {
     [Fact]
+    public async Task OfficialDiscoveryFlowsIntoTheCodexCatalogAndSelectedModel()
+    {
+        using var fixture = new ConfigFixture();
+        await File.WriteAllTextAsync(fixture.ConfigPath, "custom = 42" + Environment.NewLine);
+        var models = new GptController.Models.ApiModelDescriptor[]
+        {
+            new() { Id = "deepseek-future", DisplayName = "New official model", ContextWindowTokens = 262144 },
+            new() { Id = "deepseek-flash" }
+        };
+        await fixture.Service.ApplyAsync(GptController.Models.ApiProviderDefinitions.ForDeepSeek("deepseek-future", models));
+        using var catalog = JsonDocument.Parse(await File.ReadAllTextAsync(fixture.ModelCatalogPath));
+        var entries = catalog.RootElement.GetProperty("models");
+        Assert.Equal(2, entries.GetArrayLength());
+        Assert.Equal("deepseek-future", entries[0].GetProperty("slug").GetString());
+        Assert.Equal(262144, entries[0].GetProperty("context_window").GetInt32());
+        Assert.Equal("New official model", entries[0].GetProperty("display_name").GetString());
+        var config = await File.ReadAllTextAsync(fixture.ConfigPath);
+        Assert.Contains("deepseek-future", config);
+        Assert.Contains("custom = 42", config);
+    }
+
+    [Fact]
     public async Task Apply_PreservesUnrelatedContentAndRemovesPlaintextProviderToken()
     {
         using var fixture = new ConfigFixture();
@@ -31,7 +53,7 @@ public sealed class DeepSeekCodexConfigServiceTests
         Assert.Equal(DeepSeekConfigChangeStatus.Applied, result.Status);
         var updated = await File.ReadAllTextAsync(fixture.ConfigPath);
         Assert.Contains("# user heading", updated);
-        Assert.Contains("model = \"deepseek-v4-flash\" # keep this comment", updated);
+        Assert.Contains("model = \"deepseek-flash\" # keep this comment", updated);
         Assert.Contains("custom_root = \"untouched\"", updated);
         Assert.Contains("[mcp_servers.example]", updated);
         Assert.Contains("custom_provider_value = \"preserved\"", updated);
@@ -66,7 +88,7 @@ public sealed class DeepSeekCodexConfigServiceTests
     }
 
     [Fact]
-    public async Task Apply_EscapesWindowsPathsAndWritesBothSelectableModelsToCatalog()
+    public async Task Apply_EscapesWindowsPathsAndWritesOnlyTheSelectedModelWhenDiscoveryIsUnavailable()
     {
         using var fixture = new ConfigFixture(
             modelCatalogRelativePath: @"catalog folder\models.json",
@@ -83,13 +105,10 @@ public sealed class DeepSeekCodexConfigServiceTests
         var catalog = await File.ReadAllTextAsync(fixture.ModelCatalogPath);
         using var json = JsonDocument.Parse(catalog);
         var models = json.RootElement.GetProperty("models");
-        Assert.Equal(2, models.GetArrayLength());
+        Assert.Equal(1, models.GetArrayLength());
         Assert.Equal(
             DeepSeekCodexConfigService.FlashModel,
             models[0].GetProperty("slug").GetString());
-        Assert.Equal(
-            DeepSeekCodexConfigService.ProModel,
-            models[1].GetProperty("slug").GetString());
     }
 
     [Fact]
@@ -114,7 +133,7 @@ public sealed class DeepSeekCodexConfigServiceTests
 
         Assert.Equal(DeepSeekConfigChangeStatus.Applied, restored.Status);
         var flashConfig = await File.ReadAllTextAsync(fixture.ConfigPath);
-        Assert.Contains("model = \"deepseek-v4-flash\"", flashConfig);
+        Assert.Contains("model = \"deepseek-flash\"", flashConfig);
         Assert.Contains("custom_root = \"keep\"", flashConfig);
     }
 
@@ -172,7 +191,7 @@ public sealed class DeepSeekCodexConfigServiceTests
         using var fixture = new ConfigFixture();
         await fixture.Service.ApplyAsync();
         var changed = (await File.ReadAllTextAsync(fixture.ConfigPath))
-            .Replace("model_reasoning_effort = \"high\"", "model_reasoning_effort = \"low\"");
+            .Replace("model = \"deepseek-flash\"", "model = \"external-model\"");
         await File.WriteAllTextAsync(fixture.ConfigPath, changed);
 
         var result = await fixture.Service.RestoreAsync();
@@ -190,7 +209,7 @@ public sealed class DeepSeekCodexConfigServiceTests
         await File.WriteAllTextAsync(fixture.ConfigPath, original);
         await fixture.Service.ApplyAsync();
         var changed = (await File.ReadAllTextAsync(fixture.ConfigPath))
-            .Replace("model_reasoning_effort = \"high\"", "model_reasoning_effort = \"low\"");
+            .Replace("model = \"deepseek-flash\"", "model = \"external-model\"");
         await File.WriteAllTextAsync(fixture.ConfigPath, changed);
 
         var result = await fixture.Service.ForceRestoreFromBackupAsync();
@@ -208,7 +227,7 @@ public sealed class DeepSeekCodexConfigServiceTests
         await File.WriteAllTextAsync(fixture.ConfigPath, original);
         await fixture.Service.ApplyAsync();
         var changed = (await File.ReadAllTextAsync(fixture.ConfigPath))
-            .Replace("model_reasoning_effort = \"high\"", "model_reasoning_effort = \"low\"") +
+            .Replace("model = \"deepseek-flash\"", "model = \"external-model\"") +
             "\n[mcp_servers.new]\ncommand = \"keep-new-mcp\"\n";
         await File.WriteAllTextAsync(fixture.ConfigPath, changed);
 
@@ -300,7 +319,7 @@ public sealed class DeepSeekCodexConfigServiceTests
         await fixture.Service.ApplyAsync();
         await SetStatePhaseAsync(fixture.StatePath, "applying");
         var changed = (await File.ReadAllTextAsync(fixture.ConfigPath))
-            .Replace("model = \"deepseek-v4-flash\"", "model = \"user-model\"");
+            .Replace("model = \"deepseek-flash\"", "model = \"user-model\"");
         await File.WriteAllTextAsync(fixture.ConfigPath, changed);
 
         var result = await fixture.Service.RecoverInterruptedChangeAsync();
@@ -317,7 +336,7 @@ public sealed class DeepSeekCodexConfigServiceTests
         using var fixture = new ConfigFixture();
         await fixture.Service.ApplyAsync();
         var changed = (await File.ReadAllTextAsync(fixture.ConfigPath))
-            .Replace("model = \"deepseek-v4-flash\"", "model = \"user-model\"");
+            .Replace("model = \"deepseek-flash\"", "model = \"user-model\"");
         await File.WriteAllTextAsync(fixture.ConfigPath, changed);
 
         var result = await fixture.Service.ApplyAsync();

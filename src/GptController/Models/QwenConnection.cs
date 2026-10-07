@@ -41,23 +41,25 @@ public enum QwenRegion
     Singapore,
     Virginia,
     Frankfurt,
-    Tokyo
+    Tokyo,
+    HongKong
 }
 
 public sealed record QwenRegionDefinition(
     QwenRegion Region,
     string DisplayName,
     string HostTemplate,
-    bool RequiresWorkspaceId)
+    bool RequiresWorkspaceId,
+    string? SharedHost = null)
 {
     public Uri CreateBaseUrl(string? workspaceId)
     {
         var normalizedWorkspace = QwenRegions.NormalizeWorkspaceId(
             workspaceId,
             RequiresWorkspaceId);
-        var host = RequiresWorkspaceId
+        var host = normalizedWorkspace.Length > 0
             ? HostTemplate.Replace("{workspace}", normalizedWorkspace, StringComparison.Ordinal)
-            : HostTemplate;
+            : SharedHost ?? throw new ArgumentException("该地域需要业务空间 ID。", nameof(workspaceId));
         return new Uri($"https://{host}/compatible-mode/v1/", UriKind.Absolute);
     }
 }
@@ -71,17 +73,17 @@ public static class QwenRegions
                 QwenRegion.Beijing,
                 "华北 2（北京）",
                 "{workspace}.cn-beijing.maas.aliyuncs.com",
-                true),
+                false, "dashscope.aliyuncs.com"),
             [QwenRegion.Singapore] = new(
                 QwenRegion.Singapore,
                 "新加坡",
                 "{workspace}.ap-southeast-1.maas.aliyuncs.com",
-                true),
+                false, "dashscope-intl.aliyuncs.com"),
             [QwenRegion.Virginia] = new(
                 QwenRegion.Virginia,
                 "美国（弗吉尼亚）",
-                "dashscope-us.aliyuncs.com",
-                false),
+                "{workspace}.us-east-1.maas.aliyuncs.com",
+                false, "dashscope-us.aliyuncs.com"),
             [QwenRegion.Frankfurt] = new(
                 QwenRegion.Frankfurt,
                 "德国（法兰克福）",
@@ -91,7 +93,10 @@ public static class QwenRegions
                 QwenRegion.Tokyo,
                 "日本（东京）",
                 "{workspace}.ap-northeast-1.maas.aliyuncs.com",
-                true)
+                true),
+            [QwenRegion.HongKong] = new(
+                QwenRegion.HongKong, "中国香港", "{workspace}.cn-hongkong.maas.aliyuncs.com",
+                false, "cn-hongkong.dashscope.aliyuncs.com")
         };
 
     public static IReadOnlyList<QwenRegionDefinition> All { get; } =
@@ -111,6 +116,7 @@ public static class QwenRegions
         QwenRegion.Virginia => "弗吉尼亚",
         QwenRegion.Frankfurt => "法兰克福",
         QwenRegion.Tokyo => "东京",
+        QwenRegion.HongKong => "香港",
         _ => throw new ArgumentOutOfRangeException(nameof(region))
     };
 
@@ -142,24 +148,27 @@ public static class ApiProviderDefinitions
     public const string DeepSeekProviderId = "gpt_controller_deepseek";
     public const string QwenProviderId = "gpt_controller_qwen";
 
-    public static ApiProviderDefinition ForDeepSeek(string model) => new()
+    public static ApiProviderDefinition ForDeepSeek(string model, IReadOnlyList<ApiModelDescriptor>? models = null)
     {
-        Provider = ConnectionProvider.DeepSeek,
-        ProviderId = DeepSeekProviderId,
-        DisplayName = "DeepSeek",
-        CredentialProvider = "deepseek",
-        BaseUrl = new Uri(DeepSeekDefaults.BaseUrl),
-        Model = model,
-        Models = DeepSeekDefaults.SupportedModels.Select(item => new ApiModelDescriptor
+        var catalog = (models ?? []).Append(new ApiModelDescriptor { Id = model })
+            .DistinctBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        var selected = catalog.First(item => item.Id == model);
+        return new ApiProviderDefinition
         {
-            Id = item,
-            DisplayName = DeepSeekDefaults.GetModelDisplayName(item)
-        }).ToArray(),
-        SupportsReasoning = true,
-        SupportsParallelToolCalls = true,
-        SupportsSearch = true,
-        ConservativeContextWindow = 1_048_576
-    };
+            Provider = ConnectionProvider.DeepSeek,
+            ProviderId = DeepSeekProviderId,
+            DisplayName = "DeepSeek",
+            CredentialProvider = "deepseek",
+            BaseUrl = new Uri(DeepSeekDefaults.BaseUrl),
+            Model = model,
+            Models = catalog,
+            SupportsReasoning = selected.ReasoningEfforts.Count > 0,
+            DefaultReasoningEffort = selected.DefaultReasoningEffort,
+            SupportsParallelToolCalls = true,
+            SupportsSearch = false,
+            ConservativeContextWindow = selected.ContextWindowTokens ?? 32_768
+        };
+    }
 
     public static ApiProviderDefinition ForQwen(QwenConnection connection)
     {
@@ -181,7 +190,7 @@ public static class ApiProviderDefinitions
             SupportsReasoning = false,
             SupportsParallelToolCalls = false,
             SupportsSearch = false,
-            ConservativeContextWindow = 32_768
+            ConservativeContextWindow = models.FirstOrDefault(item => item.Id == connection.Model)?.ContextWindowTokens ?? 32_768
         };
     }
 }

@@ -8,8 +8,8 @@ public sealed class AccountMetadataServiceTests
     private readonly AccountMetadataService _service = new();
 
     [Theory]
-    [InlineData("team", MembershipPlan.Team)]
-    [InlineData("chatgpt_team", MembershipPlan.Team)]
+    [InlineData("team", MembershipPlan.Business)]
+    [InlineData("chatgpt_team", MembershipPlan.Business)]
     [InlineData("team_business", MembershipPlan.Business)]
     [InlineData("team business", MembershipPlan.Business)]
     [InlineData("teambusiness", MembershipPlan.Business)]
@@ -36,9 +36,9 @@ public sealed class AccountMetadataServiceTests
     }
 
     [Theory]
-    [InlineData("future-plan", "business", "team", MembershipPlan.Business)]
-    [InlineData("future-plan", "unknown-plan", "team", MembershipPlan.Team)]
-    public void UnknownPlanSignalsDoNotHideLaterRecognizedWorkspacePlans(
+    [InlineData("future-plan", "business", "team", MembershipPlan.Unknown)]
+    [InlineData("future-plan", "unknown-plan", "team", MembershipPlan.Unknown)]
+    public void FreshUnknownPlanDoesNotReuseAnOlderKnownPlan(
         string quotaPlan,
         string accountReadPlan,
         string claimsPlan,
@@ -53,7 +53,8 @@ public sealed class AccountMetadataServiceTests
                 "workspace-current"));
 
         Assert.Equal(expected, metadata.MembershipPlan);
-        Assert.Equal(AccountOwnershipKind.Organization, metadata.Ownership.Kind);
+        Assert.Equal(AccountOwnershipKind.Personal, metadata.Ownership.Kind);
+        Assert.Equal(quotaPlan, metadata.RawPlanType);
     }
 
     [Fact]
@@ -79,7 +80,7 @@ public sealed class AccountMetadataServiceTests
             accountId: "personal-account",
             planType: "go"));
 
-        Assert.Equal(MembershipPlan.Unknown, metadata.MembershipPlan);
+        Assert.Equal(MembershipPlan.Go, metadata.MembershipPlan);
         Assert.Equal(AccountOwnershipKind.Personal, metadata.Ownership.Kind);
     }
 

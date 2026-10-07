@@ -7,6 +7,30 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-07
+
+### Changed
+
+- Rebuilt the home page as a dark connection ledger with an active-connection
+  summary, provider icons, and a details panel for the selected connection.
+- Refresh account quotas, API balances, and official provider model catalogs on
+  startup and every two minutes by default, with a configurable 1–120 minute interval.
+- Display model capabilities returned by the official APIs, including context size,
+  output limits, image input, and supported reasoning efforts.
+- Updated DeepSeek model defaults and Qwen region, endpoint, and model metadata handling
+  to match current official information.
+
+### Fixed
+
+- Distinguished ChatGPT Pro 5x, 10x, and 25x plans while retaining an explicit
+  refresh-needed label for previously stored Pro 20x metadata.
+- Retrieve workspace names from ChatGPT account details and match the selected
+  account identifier so Team/Business accounts display the correct workspace name.
+- Display actual quota window durations and mark unavailable windows as inapplicable
+  instead of assuming five-hour and weekly limits for every account.
+- Keep usage credits separate from currency balances and avoid showing an unavailable
+  balance as zero.
+
 ## [1.3.2] - 2026-08-15
 
 ### Fixed

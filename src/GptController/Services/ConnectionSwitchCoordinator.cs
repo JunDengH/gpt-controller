@@ -620,7 +620,7 @@ public sealed class ConnectionSwitchCoordinator
                         provider,
                         "DeepSeek",
                         connection.IsActive,
-                        ApiProviderDefinitions.ForDeepSeek(connection.Model));
+                        ApiProviderDefinitions.ForDeepSeek(connection.Model, connection.Models));
                 }
             case ConnectionProvider.Qwen when
                 _qwenStore is not null && _qwenCredentialStore is not null:
@@ -693,7 +693,14 @@ public sealed class ConnectionSwitchCoordinator
             var connection = await _deepSeekStore.GetAsync(cancellationToken)
                 ?? throw new InvalidOperationException("DeepSeek connection is missing.");
             await _deepSeekStore.SaveAsync(
-                connection with { Model = model },
+                connection with
+                {
+                    Model = model,
+                    LastValidatedAt = validatedAt ?? connection.LastValidatedAt,
+                    Status = validatedAt is null ? connection.Status :
+                        connection.IsAvailable == false ? DeepSeekConnectionStatus.Unavailable : DeepSeekConnectionStatus.Available,
+                    ErrorCode = validatedAt is null ? connection.ErrorCode : null
+                },
                 cancellationToken: cancellationToken);
             return;
         }
@@ -720,9 +727,7 @@ public sealed class ConnectionSwitchCoordinator
     }
 
     private static bool IsModelAvailable(ApiSwitchTarget target, string model) =>
-        target.Definition.Provider == ConnectionProvider.DeepSeek
-            ? DeepSeekDefaults.IsSupportedModel(model)
-            : target.Definition.Models.Any(item => string.Equals(
+        target.Definition.Models.Any(item => string.Equals(
                 item.Id,
                 model,
                 StringComparison.Ordinal));
@@ -734,7 +739,8 @@ public sealed class ConnectionSwitchCoordinator
     {
         if (target.Provider == ConnectionProvider.DeepSeek)
         {
-            return ApiProviderDefinitions.ForDeepSeek(model);
+            var deepSeek = await _deepSeekStore.GetAsync(cancellationToken);
+            return ApiProviderDefinitions.ForDeepSeek(model, deepSeek?.Models);
         }
 
         if (_qwenStore is null)
@@ -876,7 +882,7 @@ public sealed class ConnectionSwitchCoordinator
 
             progress?.Report(SwitchStage.Completed);
             await _logger.InfoAsync("switch.provider", "Activated DeepSeek Responses provider.");
-            return SwitchResult.Success("已切换到 DeepSeek V4 Flash。");
+            return SwitchResult.Success("已切换到 DeepSeek 官方 API。");
         }
         catch (OperationCanceledException)
         {
@@ -980,8 +986,8 @@ public sealed class ConnectionSwitchCoordinator
         try
         {
             progress?.Report(SwitchStage.ConfiguringProvider);
-            var changed = await _configService.ChangeModelAsync(
-                model,
+            var changed = await _configService.ChangeProviderAsync(
+                ApiProviderDefinitions.ForDeepSeek(model, connection.Models),
                 cancellationToken);
             if (changed.Status == DeepSeekConfigChangeStatus.Conflict)
             {

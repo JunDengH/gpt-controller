@@ -6,7 +6,7 @@ public static class ApplicationDataLayout
     public const string LegacyApplicationDirectoryName = "GptAccountManager";
     public const string DeepSeekProvider = "deepseek";
     public const string QwenProvider = "qwen";
-    public const string DeepSeekModel = "deepseek-v4-flash";
+    public const string DeepSeekModel = "deepseek-flash";
     public const string DeepSeekCredentialEntropyPurpose =
         "GptController/DeepSeekCredential/v2";
     public const string LegacyDeepSeekCredentialEntropyPurpose =

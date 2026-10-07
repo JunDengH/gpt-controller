@@ -27,6 +27,45 @@ public sealed class DeepSeekApiClient : IDeepSeekApiClient
         _httpClient = httpClient;
     }
 
+    public async Task<IReadOnlyList<ApiModelDescriptor>> GetModelsAsync(
+        string apiKey,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateApiKey(apiKey);
+        using var request = CreateRequest(HttpMethod.Get, new Uri(DeepSeekDefaults.BaseUrl + "models"), apiKey);
+        using var response = await SendAsync(request, cancellationToken);
+        var payload = await ReadPayloadAsync(response, cancellationToken);
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                !document.RootElement.TryGetProperty("data", out var data) ||
+                data.ValueKind != JsonValueKind.Array)
+            {
+                throw InvalidResponse("DeepSeek 模型列表响应格式无效。");
+            }
+
+            return data.EnumerateArray().Select(item =>
+            {
+                var id = RequiredString(item, "id");
+                if (!DeepSeekDefaults.IsSupportedModel(id))
+                {
+                    throw InvalidResponse("DeepSeek 模型列表包含无效模型 ID。");
+                }
+                return ModelMetadataReader.DeepSeek(item, id);
+            }).DistinctBy(item => item.Id, StringComparer.Ordinal)
+                .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        }
+        catch (JsonException)
+        {
+            throw InvalidResponse("DeepSeek 模型列表响应不是有效 JSON。");
+        }
+        catch (InvalidOperationException)
+        {
+            throw InvalidResponse("DeepSeek 模型列表响应格式无效。");
+        }
+    }
+
     public async Task<DeepSeekBalanceSnapshot> GetBalanceAsync(
         string apiKey,
         CancellationToken cancellationToken = default)

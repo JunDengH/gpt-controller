@@ -121,7 +121,7 @@ public sealed class ApplicationDataMigratorTests
                 .ReadCredentialAsync(profile.Id));
 
         var migratedSettings = await new SettingsService(harness.TargetPaths).LoadAsync();
-        Assert.Equal(settings, migratedSettings);
+        Assert.Equal(settings with { RefreshPolicyVersion = 2 }, migratedSettings);
 
         var deepSeekCredentialStore = new DeepSeekCredentialStore(
             harness.TargetPaths.Root);

@@ -48,23 +48,23 @@ interoperability, credential safety and regression coverage.**
 - Change the shared Chat, Work, and Codex authentication state after explicit
   confirmation, with automatic restoration and restart of the original connection on
   failure.
-- Use `deepseek-v4-flash` / `deepseek-v4-pro`, the official
-  `https://api.deepseek.com/` endpoint, and the Responses API.
-- Support the Beijing, Singapore, Virginia, Frankfurt, and Tokyo Model Studio regions;
+- Discover available DeepSeek models from the official `GET /models` endpoint and
+  use `https://api.deepseek.com/` with the Responses API.
+- Support the Beijing, Singapore, Virginia, Frankfurt, Tokyo, and Hong Kong Model Studio regions;
   discover the current account's available `qwen*` models dynamically; and validate
   Responses Function Call compatibility before applying a model.
-- Search DeepSeek and Qwen models from a shared picker. Automatic Qwen refreshes do not
+- Search DeepSeek and Qwen models from a shared picker. Automatic refreshes do not
   issue inference requests.
 
 ### Status and observability
 
-- Show five-hour and weekly rate-limit percentages, progress, independent reset times,
+- Show Work / Codex shared quota using the actual returned window durations, progress and reset times,
   and stale-data status side by side.
-- Display Free, Plus, Pro 5x, Pro 20x, Team, Business, Enterprise, and Edu plans.
+- Display Free, Go, Plus, Pro 5x, Pro 10x, Pro 25x, Business, Enterprise, and Edu plans.
   Workspace plans show the organization for the exact current account, fall back to
   "Organization name unavailable" when it cannot be confirmed, while non-workspace
   accounts show only their email address without a personal-account label.
-- Show the DeepSeek CNY balance and provide an explicitly confirmed minimal Responses
+- Show DeepSeek CNY / USD balances and provide an explicitly confirmed minimal Responses
   test.
 - Show the current connection and status in the main window; expose the current
   connection, Open, and Exit actions from the system tray.
@@ -187,8 +187,8 @@ See [RELEASING.md](RELEASING.md) for version, branch, and tag conventions, and
 ## Rate-limit and plan data
 
 Rate limits are read from the official app-server's `account/rateLimits/read` method.
-The application prefers `rateLimitsByLimitId.codex`, identifies the approximately
-300-minute five-hour window and 10,080-minute weekly window by duration, and calculates:
+The application prefers `rateLimitsByLimitId.codex`, identifies the returned quota
+windows by duration without assuming every plan has a five-hour limit, and calculates:
 
 ```text
 remaining percentage = 100 - usedPercent
@@ -200,19 +200,33 @@ Plan mapping:
 |---|---|
 | `free`, `guest` | Free |
 | `plus` | Plus |
+| `go`, `chatgpt_go` | Go |
 | `prolite`, `pro_lite`, `pro-lite` | Pro 5x |
-| `pro` | Pro 20x |
-| `team` | Team |
+| `pro` | Pro 10x |
+| `promax`, `pro_max`, `pro_25x` | Pro 25x |
+| `team` (legacy protocol name) | Business |
 | `business`, `chatgpt_business`, `self_serve_business*` | Business |
 | `enterprise`, `chatgpt_enterprise`, `hc`, `ent26`, `enterprise_cbp_*` | Enterprise |
-| `education`, `edu`, `chatgpt_edu` | Edu |
+| `education`, `edu`, `edu_plus`, `edu_pro`, `chatgpt_edu` | Edu |
 
-Unknown plans are not guessed. Workspace names prefer the official app-server's current
-session and are matched only to the exact current account ID; older app-server versions
-fall back to token claims and the cache for that same account. After a network or
-protocol failure, the last successful data is retained and marked as stale.
+Unknown plans are not guessed. Official account details supply workspace names and raw
+plan codes, matched only to the exact current account ID. App-server sessions, token
+claims, and the same account's cached metadata provide fallbacks. Failed lookups retain
+the last successful data and show a sanitized status.
 
 ## License
 
 [MIT](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for research and
 interoperability references.
+
+Connection data now syncs immediately after startup and every 2 minutes by default (configurable from 1 to 120 minutes). The previous default of 15 minutes is upgraded; customized intervals are preserved. DeepSeek models are discovered from its official `/models` endpoint, and Qwen uses the paginated Model Studio catalog with a 404 fallback for older compatible endpoints. Official workspace credit balances are displayed when returned; missing credits remain unavailable. Automatic sync never sends inference requests.
+
+The dark home screen uses one unified connection ledger with a contextual inspector. Selecting a row does not switch the active account; the explicit switch action does. Selection is retained after refresh.
+
+## Official information check — 2026-10-07
+
+Current display names are Free, Go, Plus, Pro, Business, Enterprise and Edu. Current Pro tiers are distinguished as 5x / 10x / 25x; historical numeric values remain readable and Team displays as Business. The current pricing page lists Pro at $100/$200/$500 per month and says Pro has no five-hour limit. Tier recognition uses the official client plan codes prolite / pro / promax. The raw account-details endpoint preserves promax even when an older CLI reports it as unknown. Missing windows are unavailable rather than zero or unlimited. Credits are distinct from currency balances.
+
+Provider metadata now determines names, context/output limits, input modalities and reasoning efforts. New DeepSeek connections default to `deepseek-flash`; ignored Responses features are disabled. Qwen uses the documented native catalog query and supports workspace/shared endpoints across the supported six regions. See [the dated source audit](docs/official-information-2026-10-07.md).
+
+Account import, OAuth save and quota refresh now query official account details, matching exact account IDs in flat or mapped responses. Missing workspace names can fall back to the versioned account endpoint used by the official desktop client. Failures retain same-account names and expose sanitized diagnostics. Pro tiers remain distinct.

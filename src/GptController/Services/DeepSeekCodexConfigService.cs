@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using GptController.Infrastructure;
 using GptController.Models;
@@ -546,7 +547,10 @@ public sealed class DeepSeekCodexConfigService
         editor.Set(string.Empty, "forced_login_method", Quote("api"));
         if (provider.SupportsReasoning)
         {
-            editor.Set(string.Empty, "model_reasoning_effort", Quote("high"));
+            if (!string.IsNullOrWhiteSpace(provider.DefaultReasoningEffort))
+                editor.Set(string.Empty, "model_reasoning_effort", Quote(provider.DefaultReasoningEffort));
+            else
+                editor.Remove(string.Empty, "model_reasoning_effort");
         }
         else
         {
@@ -877,150 +881,50 @@ public sealed class DeepSeekCodexConfigService
         }
     }
 
-    private async Task WriteModelCatalogAsync(
-        ApiProviderDefinition provider,
-        CancellationToken cancellationToken)
+    private async Task WriteModelCatalogAsync(ApiProviderDefinition provider, CancellationToken cancellationToken)
     {
-        if (provider.Provider == ConnectionProvider.Qwen)
-        {
-            var models = provider.Models
-                .DistinctBy(item => item.Id, StringComparer.Ordinal)
-                .Select((item, index) => (object)new
-                {
-                    slug = item.Id,
-                    prefer_websockets = false,
-                    support_verbosity = false,
-                    default_verbosity = "low",
-                    apply_patch_tool_type = "function",
-                    web_search_tool_type = "text",
-                    input_modalities = new[] { "text" },
-                    supports_image_detail_original = false,
-                    truncation_policy = new { mode = "tokens", limit = 8_000 },
-                    supports_parallel_tool_calls = false,
-                    multi_agent_version = "v2",
-                    use_responses_lite = false,
-                    include_skills_usage_instructions = false,
-                    context_window = provider.ConservativeContextWindow,
-                    max_context_window = provider.ConservativeContextWindow,
-                    effective_context_window_percent = 90,
-                    comp_hash = "3000",
-                    reasoning_summary_format = "experimental",
-                    default_reasoning_summary = "none",
-                    display_name = item.EffectiveDisplayName,
-                    description = "Qwen model discovered from Alibaba Cloud Model Studio.",
-                    default_reasoning_level = "medium",
-                    supported_reasoning_levels = new object[]
-                    {
-                        new { effort = "medium", description = "Provider-compatible default" }
-                    },
-                    base_instructions = "You are Codex, an agentic coding assistant. Work carefully in the user's repository, use function tools when needed, preserve unrelated changes, and verify your work.",
-                    shell_type = "shell_command",
-                    visibility = "list",
-                    minimal_client_version = "0.146.0",
-                    supported_in_api = true,
-                    priority = index + 1,
-                    experimental_supported_tools = Array.Empty<string>(),
-                    supports_search_tool = false,
-                    supports_reasoning_summaries = false
-                })
-                .ToArray();
-            var qwenJson = JsonSerializer.Serialize(new { models }, JsonOptions) +
-                           Environment.NewLine;
-            await AtomicFile.WriteAllTextAsync(
-                _options.ModelCatalogFilePath,
-                qwenJson,
-                cancellationToken);
-            return;
-        }
-
-        var catalog = new
-        {
-            models = new object[]
+        var models = provider.Models.DistinctBy(item => item.Id, StringComparer.Ordinal)
+            .Select((item, index) => new
             {
-                new
+                slug = item.Id,
+                display_name = item.EffectiveDisplayName,
+                description = "Model metadata discovered from the official provider API.",
+                prefer_websockets = false,
+                support_verbosity = false,
+                default_verbosity = "low",
+                apply_patch_tool_type = provider.Provider == ConnectionProvider.DeepSeek ? "freeform" : "function",
+                web_search_tool_type = "text",
+                input_modalities = item.InputModalities.Count > 0
+                    ? item.InputModalities.Where(value => value is "text" or "image").ToArray() : ["text"],
+                supports_image_detail_original = false,
+                truncation_policy = new { mode = "tokens", limit = 8_000 },
+                supports_parallel_tool_calls = provider.SupportsParallelToolCalls,
+                multi_agent_version = "v2",
+                use_responses_lite = false,
+                include_skills_usage_instructions = false,
+                context_window = item.ContextWindowTokens ?? 32_768,
+                max_context_window = item.ContextWindowTokens ?? 32_768,
+                effective_context_window_percent = 90,
+                comp_hash = "3000",
+                reasoning_summary_format = "experimental",
+                default_reasoning_summary = "none",
+                default_reasoning_level = item.DefaultReasoningEffort,
+                supported_reasoning_levels = item.ReasoningEfforts.Select(effort => new
                 {
-                    slug = FlashModel,
-                    prefer_websockets = false,
-                    support_verbosity = true,
-                    default_verbosity = "low",
-                    apply_patch_tool_type = "freeform",
-                    web_search_tool_type = "text",
-                    input_modalities = new[] { "text" },
-                    supports_image_detail_original = false,
-                    truncation_policy = new { mode = "tokens", limit = 10_000 },
-                    supports_parallel_tool_calls = true,
-                    multi_agent_version = "v2",
-                    use_responses_lite = false,
-                    include_skills_usage_instructions = false,
-                    context_window = 1_048_576,
-                    max_context_window = 1_048_576,
-                    effective_context_window_percent = 95,
-                    comp_hash = "3000",
-                    reasoning_summary_format = "experimental",
-                    default_reasoning_summary = "none",
-                    display_name = "DeepSeek-V4-Flash",
-                    description = "Latest frontier agentic coding model.",
-                    default_reasoning_level = "high",
-                    supported_reasoning_levels = new object[]
-                    {
-                        new { effort = "low", description = "Fast responses with lighter reasoning" },
-                        new { effort = "high", description = "Extra high reasoning depth for complex problems" },
-                        new { effort = "max", description = "Maximum reasoning depth for the hardest problems" }
-                    },
-                    base_instructions = "You are Codex, an agentic coding assistant. Work carefully in the user's repository, use tools when needed, preserve unrelated changes, and verify your work.",
-                    shell_type = "shell_command",
-                    visibility = "list",
-                    minimal_client_version = "0.146.0",
-                    supported_in_api = true,
-                    priority = 1,
-                    experimental_supported_tools = Array.Empty<string>(),
-                    supports_search_tool = true,
-                    supports_reasoning_summaries = true
-                },
-                new
-                {
-                    slug = ProModel,
-                    prefer_websockets = false,
-                    support_verbosity = true,
-                    default_verbosity = "low",
-                    apply_patch_tool_type = "freeform",
-                    web_search_tool_type = "text",
-                    input_modalities = new[] { "text" },
-                    supports_image_detail_original = false,
-                    truncation_policy = new { mode = "tokens", limit = 10_000 },
-                    supports_parallel_tool_calls = true,
-                    multi_agent_version = "v2",
-                    use_responses_lite = false,
-                    include_skills_usage_instructions = false,
-                    context_window = 1_048_576,
-                    max_context_window = 1_048_576,
-                    effective_context_window_percent = 95,
-                    comp_hash = "3000",
-                    reasoning_summary_format = "experimental",
-                    default_reasoning_summary = "none",
-                    display_name = "DeepSeek-V4-Pro",
-                    description = "Higher-capability reasoning and agentic coding model.",
-                    default_reasoning_level = "high",
-                    supported_reasoning_levels = new object[]
-                    {
-                        new { effort = "low", description = "Fast responses with lighter reasoning" },
-                        new { effort = "high", description = "Extra high reasoning depth for complex problems" },
-                        new { effort = "max", description = "Maximum reasoning depth for the hardest problems" }
-                    },
-                    base_instructions = "You are Codex, an agentic coding assistant. Work carefully in the user's repository, use tools when needed, preserve unrelated changes, and verify your work.",
-                    shell_type = "shell_command",
-                    visibility = "list",
-                    minimal_client_version = "0.146.0",
-                    supported_in_api = true,
-                    priority = 2,
-                    experimental_supported_tools = Array.Empty<string>(),
-                    supports_search_tool = true,
-                    supports_reasoning_summaries = true
-                }
-            }
-        };
-
-        var json = JsonSerializer.Serialize(catalog, JsonOptions) + Environment.NewLine;
+                    effort,
+                    description = "Provider-reported reasoning effort"
+                }).ToArray(),
+                base_instructions = "You are Codex, an agentic coding assistant. Work carefully in the user's repository, use function tools when needed, preserve unrelated changes, and verify your work.",
+                shell_type = "shell_command",
+                visibility = "list",
+                minimal_client_version = "0.146.0",
+                supported_in_api = true,
+                priority = index + 1,
+                experimental_supported_tools = Array.Empty<string>(),
+                supports_search_tool = provider.SupportsSearch,
+                supports_reasoning_summaries = false
+            }).ToArray();
+        var json = JsonSerializer.Serialize(new { models }, JsonOptions) + Environment.NewLine;
         await AtomicFile.WriteAllTextAsync(_options.ModelCatalogFilePath, json, cancellationToken);
     }
 

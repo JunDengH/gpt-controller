@@ -71,7 +71,8 @@ public sealed class CurrentAccountImportService
             var existing = !string.IsNullOrWhiteSpace(claims.AccountId)
                 ? await _vault.FindByAccountIdAsync(claims.AccountId, cancellationToken)
                 : null;
-            var metadata = _metadataService.Resolve(claims, cached: existing);
+            var metadata = await _metadataService.ResolveAsync(claims, auth.AccessToken,
+                cached: existing, cancellationToken: cancellationToken);
             var nickname = existing?.Nickname;
             if (string.IsNullOrWhiteSpace(nickname))
             {
@@ -86,6 +87,9 @@ public sealed class CurrentAccountImportService
                 AccountId = metadata.AccountId,
                 IsActive = true,
                 MembershipPlan = metadata.MembershipPlan,
+                RawPlanType = metadata.RawPlanType,
+                AccountMetadataVerified = metadata.AccountMetadataVerified,
+                AccountMetadataErrorCode = metadata.AccountMetadataErrorCode,
                 Ownership = metadata.Ownership,
                 CreatedAt = existing?.CreatedAt ?? DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,

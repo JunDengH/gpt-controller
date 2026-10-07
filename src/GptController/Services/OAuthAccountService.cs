@@ -138,13 +138,13 @@ public sealed class OAuthAccountService
             var existing = await _vault.FindByAccountIdAsync(
                 initialMetadata.AccountId,
                 cancellationToken);
-            var metadata = existing is null
-                ? initialMetadata
-                : _metadataService.Resolve(
+            var metadata = await _metadataService.ResolveAsync(
                     claims,
+                    auth.AccessToken,
                     quotaResult?.PlanType,
                     accountRead,
-                    existing);
+                    existing,
+                    cancellationToken);
             if (!string.Equals(
                     metadata.AccountId,
                     initialMetadata.AccountId,
@@ -173,6 +173,9 @@ public sealed class OAuthAccountService
                 AccountId = metadata.AccountId,
                 IsActive = existing?.IsActive ?? false,
                 MembershipPlan = metadata.MembershipPlan,
+                RawPlanType = metadata.RawPlanType,
+                AccountMetadataVerified = metadata.AccountMetadataVerified,
+                AccountMetadataErrorCode = metadata.AccountMetadataErrorCode,
                 Ownership = metadata.Ownership,
                 CreatedAt = existing?.CreatedAt ?? DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,

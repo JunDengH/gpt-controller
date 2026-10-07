@@ -122,8 +122,8 @@ public sealed class AccountCardViewModelTests
 
         Assert.True(card.IsProModel);
         Assert.False(card.IsFlashModel);
-        Assert.Equal("V4 Pro", card.ApiModelDisplayName);
-        Assert.Contains("复杂编码", card.ApiModelDescription);
+        Assert.Equal("DeepSeek Pro", card.ApiModelDisplayName);
+        Assert.Equal("DeepSeek Pro", card.ApiModelDescription);
     }
 
     [Fact]
