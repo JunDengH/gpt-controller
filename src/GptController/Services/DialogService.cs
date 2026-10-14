@@ -58,6 +58,15 @@ public sealed class DialogService
                 MessageDialogKind.Error,
                 PrimaryButtonText: actionText));
 
+    public string? PromptAccountName(string nickname)
+    {
+        var dialog = new AccountNameDialog(nickname)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+        return dialog.ShowDialog() == true ? dialog.Value : null;
+    }
+
     public DeepSeekConnectionInput? PromptDeepSeekConnection(
         string nickname,
         bool hasExistingKey)

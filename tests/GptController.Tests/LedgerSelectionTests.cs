@@ -68,6 +68,19 @@ public sealed class LedgerSelectionTests : IDisposable
         Assert.Equal("未提供", qwen.LedgerSecondaryValue);
     }
 
+    [Fact]
+    public void RenameIsAvailableForActiveAndInactiveChatGptAccounts()
+    {
+        using var model = CreateModel();
+        model.RefreshAllCommand.Execute(null);
+        var active = model.Accounts.First(account => account.IsChatGpt && account.IsActive);
+        var inactive = model.Accounts.First(account => account.IsChatGpt && !account.IsActive);
+
+        Assert.True(model.RenameAccountCommand.CanExecute(active));
+        Assert.True(model.RenameAccountCommand.CanExecute(inactive));
+        Assert.False(model.RenameAccountCommand.CanExecute(model.Accounts.First(account => account.IsApiProvider)));
+    }
+
     private MainWindowViewModel CreateModel()
     {
         var paths = new AppPaths(_root, _root);

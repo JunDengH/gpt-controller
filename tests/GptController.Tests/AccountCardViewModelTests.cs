@@ -422,9 +422,11 @@ public sealed class AccountCardViewModelTests
             Quota = new QuotaSnapshot
             {
                 FiveHourRemainingPercent = 82.4,
+                FiveHourWindowDurationMinutes = 300,
                 FiveHourResetsAt =
                     new DateTimeOffset(2026, 7, 30, 13, 0, 0, TimeSpan.Zero),
                 RemainingPercent = 44.6,
+                WindowDurationMinutes = 10080,
                 ResetsAt =
                     new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero),
                 FetchedAt = DateTimeOffset.UtcNow,
@@ -439,6 +441,28 @@ public sealed class AccountCardViewModelTests
         Assert.NotEqual(
             card.FiveHourResetValueText,
             card.WeeklyResetValueText);
+        Assert.Equal($"5 小时重置  {card.FiveHourResetValueText}", card.LedgerPrimaryResetText);
+        Assert.Equal($"每周重置  {card.WeeklyResetValueText}", card.LedgerSecondaryResetText);
+    }
+
+    [Fact]
+    public void ResetDisplayUpdatesAndKeepsAbsentWindowsExplicit()
+    {
+        var card = CreateCard(QuotaStatus.Fresh, null);
+        Assert.Equal("短期窗口重置  暂不可用", card.LedgerPrimaryResetText);
+        var changedProperties = new List<string?>();
+        card.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        card.UpdateProfile(card.Profile with
+        {
+            Quota = card.Profile.Quota! with { HasShortWindow = false, HasLongWindow = false }
+        });
+
+        Assert.Equal("短期窗口不适用", card.LedgerPrimaryResetText);
+        Assert.Equal("长期窗口不适用", card.LedgerSecondaryResetText);
+        Assert.Contains(nameof(AccountCardViewModel.LedgerPrimaryResetText), changedProperties);
+        Assert.Contains(nameof(AccountCardViewModel.LedgerSecondaryResetText), changedProperties);
+        Assert.Equal(string.Empty, new AccountCardViewModel(new DeepSeekConnection()).LedgerPrimaryResetText);
     }
 
     private static AccountCardViewModel CreateCard(
