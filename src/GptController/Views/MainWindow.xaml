@@ -212,8 +212,7 @@
                             <Grid DataContext="{Binding CurrentConnection}" Visibility="{Binding DataContext.HasCurrentConnection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVisibility}}" Margin="14,26,0,26">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="49*"/>
-                                    <ColumnDefinition Width="41*"/>
-                                    <ColumnDefinition Width="10*"/>
+                                    <ColumnDefinition Width="51*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="当前使用" Style="{StaticResource Heading}" Margin="0,0,0,20"/>
@@ -238,7 +237,7 @@
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
-                                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,23,18,0">
+                                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,0,18,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="44"/>
@@ -248,17 +247,15 @@
                                         <TextBlock Text="{Binding FiveHourRemainingText}" FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSize}, ConverterParameter='23,30'}" FontWeight="SemiBold"/>
                                         <TextBlock Text="{Binding PrimarySummaryLabel}" Style="{StaticResource Caption}" Margin="0,3,0,0"/>
                                         <ProgressBar Value="{Binding FiveHourRemainingValue, Mode=OneWay}" Maximum="100" Height="8" Margin="0,12,0,0" Visibility="{Binding ShowPrimaryProgress, Converter={StaticResource BoolVisibility}}" Style="{StaticResource RoundedProgressBarStyle}"/>
+                                        <TextBlock Text="{Binding LedgerPrimaryResetText}" Style="{StaticResource Caption}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding IsChatGpt, Converter={StaticResource BoolVisibility}}"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="{Binding WeeklyRemainingText}" FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSize}, ConverterParameter='23,30'}" FontWeight="SemiBold"/>
                                         <TextBlock Text="{Binding SecondarySummaryLabel}" Style="{StaticResource Caption}" Margin="0,3,0,0"/>
                                         <ProgressBar Value="{Binding WeeklyRemainingValue, Mode=OneWay}" Maximum="100" Height="8" Margin="0,12,0,0" Visibility="{Binding ShowSecondaryProgress, Converter={StaticResource BoolVisibility}}" Style="{StaticResource RoundedProgressBarStyle}"/>
+                                        <TextBlock Text="{Binding LedgerSecondaryResetText}" Style="{StaticResource Caption}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding IsChatGpt, Converter={StaticResource BoolVisibility}}"/>
                                     </StackPanel>
                                 </Grid>
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,25,0,0">
-                                    <TextBlock Text="下次重置" Style="{StaticResource Caption}"/>
-                                    <TextBlock Text="{Binding WeeklyResetValueText}" Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"/>
-                                </StackPanel>
                             </Grid>
                             <StackPanel Margin="14,34,0,0">
                                 <StackPanel.Style>
@@ -389,7 +386,15 @@
                                                 </StackPanel>
                                             </Grid>
                                         </Grid>
-                                        <TextBlock Grid.Row="1" Text="{Binding LedgerResetText}" Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding IsChatGpt, Converter={StaticResource BoolVisibility}}"/>
+                                        <Grid Grid.Row="1" Margin="0,8,0,0" Visibility="{Binding IsChatGpt, Converter={StaticResource BoolVisibility}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="26"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding LedgerPrimaryResetText}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding LedgerSecondaryResetText}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"/>
+                                        </Grid>
                                     </Grid>
                                     <Border Grid.Column="3" Padding="8,5" CornerRadius="15" HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <Border.Style>
@@ -467,12 +472,16 @@
                                         <Button.ContextMenu>
                                             <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
                                                 <MenuItem Header="同步所选连接" Command="{Binding RefreshAccountCommand}" CommandParameter="{Binding SelectedConnection}"/>
+                                                <MenuItem Header="修改账号名称" Command="{Binding RenameAccountCommand}" CommandParameter="{Binding SelectedConnection}" Visibility="{Binding SelectedConnection.IsChatGpt, Converter={StaticResource BoolVisibility}}"/>
                                                 <MenuItem Header="删除所选连接" Command="{Binding DeleteAccountCommand}" CommandParameter="{Binding SelectedConnection}"/>
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                         <icons:PackIconMaterial xmlns:icons="http://metro.mahapps.com/winfx/xaml/iconpacks" Kind="DotsHorizontal" Width="22" Height="22"/>
                                     </Button>
                                 </Grid>
+                                <Button Content="修改账号名称" Style="{StaticResource GhostButton}" HorizontalAlignment="Left" Margin="0,16,0,0"
+                                        Command="{Binding DataContext.RenameAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                        Visibility="{Binding IsChatGpt, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="修改账号名称"/>
                                 <StackPanel Margin="0,48,0,0">
                                     <TextBlock Text="余额 / 额度" Style="{StaticResource Heading}" Margin="0,0,0,20"/>
                                     <Grid>
@@ -483,11 +492,13 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Text="{Binding FiveHourRemainingText}" FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSize}, ConverterParameter='22,40'}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding PrimaryMetricLabel}" Style="{StaticResource Caption}" Margin="0,6,0,0"/>
                                             <TextBlock Text="{Binding PrimaryMetricDetailText}" Style="{StaticResource Caption}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                                         </StackPanel>
                                         <Border Grid.Column="1" Width="1" Background="{StaticResource BorderSubtleBrush}"/>
                                         <StackPanel Grid.Column="2">
                                             <TextBlock Text="{Binding WeeklyRemainingText}" FontSize="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource AdaptiveSize}, ConverterParameter='22,40'}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding SecondaryMetricLabel}" Style="{StaticResource Caption}" Margin="0,6,0,0"/>
                                             <TextBlock Text="{Binding SecondaryMetricDetailText}" Style="{StaticResource Caption}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Grid>

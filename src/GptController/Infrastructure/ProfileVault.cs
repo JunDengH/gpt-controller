@@ -136,6 +136,43 @@ public sealed class ProfileVault
         }
     }
 
+    public async Task<AccountProfile> RenameProfileAsync(
+        Guid profileId,
+        string nickname,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nickname);
+        nickname = nickname.Trim();
+        if (nickname.Length > 40)
+        {
+            throw new ArgumentException("账号名称最多 40 个字符。", nameof(nickname));
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var profiles = (await LoadProfilesCoreAsync(cancellationToken)).ToList();
+            var index = profiles.FindIndex(profile => profile.Id == profileId);
+            if (index < 0)
+            {
+                throw new InvalidOperationException("所选账号已不存在，请刷新列表。");
+            }
+
+            var renamed = profiles[index] with
+            {
+                Nickname = nickname,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            profiles[index] = renamed;
+            await SaveProfilesCoreAsync(profiles, cancellationToken);
+            return renamed;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task SaveProfilesAsync(
         IReadOnlyCollection<AccountProfile> profiles,
         CancellationToken cancellationToken = default)

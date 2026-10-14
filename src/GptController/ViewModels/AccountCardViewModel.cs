@@ -57,7 +57,14 @@ public sealed class AccountCardViewModel : ObservableObject
     public string LedgerSecondaryValue => IsQwen ? "未提供" : WeeklyRemainingText;
     public string LedgerPrimaryLabel => IsApiProvider ? "CNY 余额" : Profile.Quota?.HasShortWindow == false ? "短期" : PrimaryMetricLabel;
     public string LedgerSecondaryLabel => IsApiProvider ? "USD 余额" : Profile.Quota?.HasLongWindow == false ? "长期" : SecondaryMetricLabel;
-    public string LedgerResetText => IsApiProvider ? string.Empty : $"下次重置  {WeeklyResetValueText}";
+    public string LedgerPrimaryResetText => IsApiProvider ? string.Empty
+        : Profile.Quota?.HasShortWindow == false ? "短期窗口不适用"
+        : $"{PrimaryMetricLabel}重置  {FiveHourResetValueText}";
+    public string LedgerSecondaryResetText => IsApiProvider ? string.Empty
+        : Profile.Quota?.HasLongWindow == false ? "长期窗口不适用"
+        : $"{SecondaryMetricLabel}重置  {WeeklyResetValueText}";
+    public string LedgerResetText => IsApiProvider ? string.Empty
+        : $"{LedgerPrimaryResetText} · {LedgerSecondaryResetText}";
     public string DetailKind => IsApiProvider ? "API 连接" : "ChatGPT 账号";
     public string DetailUpdatedText => (IsDeepSeek ? _deepSeek!.ModelsFetchedAt : IsQwen ? _qwen!.ModelsFetchedAt : Profile.Quota?.FetchedAt) is { } updated
         ? updated.ToLocalTime().ToString("M月d日 HH:mm") : "尚未同步";
@@ -349,6 +356,8 @@ public sealed class AccountCardViewModel : ObservableObject
         OnPropertyChanged(nameof(LedgerPrimaryLabel));
         OnPropertyChanged(nameof(LedgerSecondaryLabel));
         OnPropertyChanged(nameof(LedgerResetText));
+        OnPropertyChanged(nameof(LedgerPrimaryResetText));
+        OnPropertyChanged(nameof(LedgerSecondaryResetText));
         OnPropertyChanged(nameof(DetailUpdatedText));
         OnPropertyChanged(nameof(CardKind));
         OnPropertyChanged(nameof(ApiPresentation));

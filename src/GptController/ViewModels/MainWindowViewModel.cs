@@ -117,6 +117,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 !HasActiveRefresh &&
                 !HasPendingAccountRecovery &&
                 !account.IsRefreshing);
+        RenameAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
+            RenameAccountAsync,
+            account => !IsBusy && !HasPendingAccountRecovery && account.IsChatGpt);
         DeleteAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             DeleteAccountAsync,
             account => !IsBusy && !HasPendingAccountRecovery && account.CanDelete);
@@ -179,6 +182,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public RelayCommand ShowSettingsCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> SwitchAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> RefreshAccountCommand { get; }
+    public AsyncRelayCommand<AccountCardViewModel> RenameAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> DeleteAccountCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> TestApiConnectionCommand { get; }
     public AsyncRelayCommand<AccountCardViewModel> SelectApiModelCommand { get; }
@@ -869,6 +873,45 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (refreshAfterSwitch && !_disposed && !account.IsApiProvider)
         {
             StartPostSwitchRefresh(account.Id);
+        }
+    }
+
+    private async Task RenameAccountAsync(AccountCardViewModel account)
+    {
+        var nickname = _dialogs.PromptAccountName(account.Nickname);
+        if (nickname is null || nickname == account.Nickname)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await CancelAndDrainRefreshesAsync();
+            if (_isUiPreview)
+            {
+                account.UpdateProfile(account.Profile with { Nickname = nickname });
+                NotifyConnectionsChanged();
+            }
+            else
+            {
+                await _vault.RenameProfileAsync(account.Id, nickname, _lifetimeCts.Token);
+                await ReloadAccountsAsync(_lifetimeCts.Token);
+            }
+            StatusMessage = $"账号名称已修改为 {nickname}";
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Application shutdown cancels mutation without showing an error.
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = "修改账号名称失败";
+            _dialogs.Error("修改账号名称失败", RedactingLogger.Redact(exception.Message));
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
@@ -2084,6 +2127,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         SaveSettingsCommand.NotifyCanExecuteChanged();
         SwitchAccountCommand.NotifyCanExecuteChanged();
         RefreshAccountCommand.NotifyCanExecuteChanged();
+        RenameAccountCommand.NotifyCanExecuteChanged();
         DeleteAccountCommand.NotifyCanExecuteChanged();
         TestApiConnectionCommand.NotifyCanExecuteChanged();
         SelectApiModelCommand.NotifyCanExecuteChanged();

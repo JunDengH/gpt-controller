@@ -7,6 +7,15 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-14
+
+### Fixed
+
+- Restored the ChatGPT account rename action, with saved names reflected in the
+  connection list, details, current connection, and tray menu.
+- Display short-term (including five-hour) and weekly quota reset times separately
+  in the connection list and current-connection summary.
+
 ## [1.4.0] - 2026-10-07
 
 ### Changed
