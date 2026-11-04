@@ -256,7 +256,21 @@ public sealed class QuotaService
                         probeDirectory,
                         _logger,
                         token);
-                    var account = await client.ReadAccountAsync(token);
+                    AccountReadMetadata? account;
+                    try
+                    {
+                        account = await client.ReadAccountAsync(token);
+                    }
+                    catch (TimeoutException)
+                    {
+                        // Account/workspace metadata is optional for quota retrieval.
+                        // Keep this client alive so a slow cold start can still answer
+                        // the quota request instead of ending the refresh with cached data.
+                        account = null;
+                        await _logger.WarningAsync(
+                            "quota.account-metadata",
+                            "Account metadata timed out; continuing with the quota request.");
+                    }
                     var rateLimits = await client.ReadRateLimitsAsync(token);
                     return (
                         Account: account,

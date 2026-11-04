@@ -39,6 +39,59 @@ public sealed class QuotaServiceTests
     }
 
     [Fact]
+    public async Task AccountMetadataTimeoutStillFetchesAndPersistsCurrentQuota()
+    {
+        var previous = DateTimeOffset.UtcNow.AddDays(-1);
+        await using var harness = await QuotaHarness.CreateAsync(
+            isActive: false,
+            accessTokenExpiration: DateTimeOffset.UtcNow.AddMinutes(10),
+            quota: new QuotaSnapshot
+            {
+                FetchedAt = previous, Status = QuotaStatus.Fresh, RemainingPercent = 95
+            });
+        harness.Factory.AccountException = new TimeoutException("account/read timed out");
+
+        var updated = await harness.Service.RefreshAsync(harness.Profile.Id);
+        var persisted = await harness.Vault.GetProfileAsync(harness.Profile.Id);
+
+        Assert.Equal(1, harness.Factory.RateLimitReadCount);
+        Assert.Equal(1, harness.Factory.StartCount);
+        Assert.Equal(QuotaStatus.Fresh, updated.Quota?.Status);
+        Assert.Equal(75, updated.Quota?.RemainingPercent);
+        Assert.True(updated.Quota?.FetchedAt > previous);
+        Assert.Equal(updated.Quota, persisted?.Quota);
+    }
+
+    [Fact]
+    public async Task QuotaTimeoutKeepsOldValuesUntilALaterRequestSucceeds()
+    {
+        var previous = DateTimeOffset.UtcNow.AddDays(-1);
+        await using var harness = await QuotaHarness.CreateAsync(
+            isActive: false,
+            accessTokenExpiration: DateTimeOffset.UtcNow.AddMinutes(10),
+            quota: new QuotaSnapshot
+            {
+                FetchedAt = previous, Status = QuotaStatus.Fresh, RemainingPercent = 95
+            });
+        harness.Factory.AccountException = new TimeoutException("account/read timed out");
+        harness.Factory.RateLimitsException = new TimeoutException("quota timed out");
+
+        var failed = await harness.Service.RefreshAsync(harness.Profile.Id);
+
+        Assert.Equal(QuotaStatus.Stale, failed.Quota?.Status);
+        Assert.Equal(95, failed.Quota?.RemainingPercent);
+        Assert.Equal(previous, failed.Quota?.FetchedAt);
+
+        harness.Factory.RateLimitsException = null;
+        var recovered = await harness.Service.RefreshAsync(harness.Profile.Id);
+
+        Assert.Equal(2, harness.Factory.RateLimitReadCount);
+        Assert.Equal(QuotaStatus.Fresh, recovered.Quota?.Status);
+        Assert.Equal(75, recovered.Quota?.RemainingPercent);
+        Assert.True(recovered.Quota?.FetchedAt > previous);
+    }
+
+    [Fact]
     public async Task LegacyAuthenticationErrorIsRetriedAutomaticallyAndRecovers()
     {
         await using var harness = await QuotaHarness.CreateAsync(
@@ -207,11 +260,6 @@ public sealed class QuotaServiceTests
                 "quota_refresh_failed"
             },
             {
-                new TimeoutException("app-server request timed out."),
-                QuotaStatus.Stale,
-                "quota_refresh_failed"
-            },
-            {
                 new InvalidOperationException("Service unavailable (503)."),
                 QuotaStatus.Stale,
                 "quota_refresh_failed"
@@ -367,6 +415,8 @@ public sealed class QuotaServiceTests
         public int MaximumActiveSessions => _maximumActiveSessions;
         public byte[]? LastCredential { get; private set; }
         public Exception? AccountException { get; set; }
+        public Exception? RateLimitsException { get; set; }
+        public int RateLimitReadCount { get; private set; }
         public TimeSpan ReadDelay { get; set; }
         public bool BlockReads { get; set; }
         public string PlanType { get; set; } = "plus";
@@ -395,6 +445,11 @@ public sealed class QuotaServiceTests
                 ReadDelay,
                 BlockReads,
                 ReadStarted,
+                () =>
+                {
+                    RateLimitReadCount++;
+                    if (RateLimitsException is not null) throw RateLimitsException;
+                },
                 () => Interlocked.Decrement(ref _activeSessions));
         }
 
@@ -422,6 +477,7 @@ public sealed class QuotaServiceTests
         TimeSpan readDelay,
         bool blockReads,
         TaskCompletionSource readStarted,
+        Action readRateLimits,
         Action dispose)
         : ICodexAppServerClient
     {
@@ -457,6 +513,7 @@ public sealed class QuotaServiceTests
         public Task<JsonElement> ReadRateLimitsAsync(
             CancellationToken cancellationToken = default)
         {
+            readRateLimits();
             return Task.FromResult(JsonSerializer.SerializeToElement(new
             {
                 rateLimits = new

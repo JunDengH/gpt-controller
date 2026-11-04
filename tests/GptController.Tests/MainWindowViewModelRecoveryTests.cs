@@ -13,6 +13,97 @@ public sealed class MainWindowViewModelRecoveryTests : IDisposable
         Path.GetTempPath(),
         $"view-model-recovery-{Guid.NewGuid():N}");
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManualRefreshTakesOverBlockedBackgroundRefresh(bool refreshAll)
+    {
+        var client = new SuccessfulDeepSeekApiClient { BlockFirstRequest = true };
+        using var viewModel = await CreateRefreshViewModelAsync(client);
+        var card = Assert.Single(viewModel.Accounts);
+        var previous = card.LastSyncedAt;
+        var background = viewModel.RefreshAllAsync(true, QuotaRefreshReason.Automatic);
+        await client.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(viewModel.RefreshAllCommand.CanExecute(null));
+        Assert.True(viewModel.RefreshAccountCommand.CanExecute(card));
+        Assert.Contains("正在刷新", viewModel.LatestSyncText);
+        Assert.Equal("正在刷新…", card.DetailUpdatedText);
+        Assert.Equal(previous, card.LastSyncedAt);
+
+        if (refreshAll)
+            await viewModel.RefreshAllAsync(false, QuotaRefreshReason.Manual);
+        else
+            await ExecuteAsync(viewModel.RefreshAccountCommand, card);
+        await background.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, client.BalanceRequests);
+        Assert.Equal(1, client.MaximumActiveRequests);
+        Assert.True(card.HasFreshQuota);
+        Assert.True(card.LastSyncedAt > previous);
+        Assert.False(card.IsRefreshing);
+        Assert.False(viewModel.IsWorking);
+        Assert.DoesNotContain("正在刷新", viewModel.LatestSyncText);
+        Assert.Contains("已更新", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ProviderFailureDoesNotStopLaterAccountsOrReportStaleDataAsUpdated()
+    {
+        var client = new SuccessfulDeepSeekApiClient { FailBalance = true };
+        using var viewModel = await CreateRefreshViewModelAsync(client);
+        var paths = new AppPaths(_root, _root);
+        var previous = DateTimeOffset.UtcNow.AddDays(-1);
+        var profile = await new ProfileVault(paths).UpsertProfileAsync(new AccountProfile
+        {
+            Nickname = "Missing credential", AccountId = "missing", Email = "test@example.com",
+            Quota = new QuotaSnapshot
+            {
+                FetchedAt = previous, Status = QuotaStatus.Fresh, RemainingPercent = 50
+            }
+        });
+        var card = new AccountCardViewModel(profile);
+        viewModel.Accounts.Add(card);
+
+        await viewModel.RefreshAllAsync(true, QuotaRefreshReason.Automatic);
+
+        Assert.Equal("invalid_auth", card.Profile.Quota?.ErrorCode);
+        Assert.Equal(previous, card.LastSyncedAt);
+        Assert.StartsWith("上次 ", card.DetailUpdatedText);
+        Assert.Equal("需要重新登录", card.QuotaStatusText);
+        Assert.Contains("0 个已更新，2 个未更新", viewModel.StatusMessage);
+        Assert.False(viewModel.IsWorking);
+    }
+
+    private async Task<MainWindowViewModel> CreateRefreshViewModelAsync(SuccessfulDeepSeekApiClient client)
+    {
+        var paths = new AppPaths(_root, _root);
+        paths.EnsureCreated();
+        var vault = new ProfileVault(paths);
+        var credentials = new DeepSeekCredentialStore(paths.Root);
+        var store = new DeepSeekConnectionStore(paths, credentials);
+        var connection = await store.SaveAsync(new DeepSeekConnection
+        {
+            ModelsFetchedAt = DateTimeOffset.UtcNow.AddDays(-1),
+            Models = [new ApiModelDescriptor { Id = DeepSeekDefaults.Model }]
+        }, "sk-refresh-test-1234");
+        var process = new PassiveProcessController();
+        var gate = new OperationGate();
+        var logger = new RedactingLogger(paths);
+        var viewModel = new MainWindowViewModel(
+            vault: vault, settingsService: null!, configService: null!, importService: null!,
+            oauthService: null!,
+            quotaService: new QuotaService(paths, vault, null!, null!, process,
+                new AccountMetadataService(), new QuotaParser(), gate, logger),
+            switchCoordinator: new SwitchCoordinator(paths, vault, process, gate, logger),
+            processController: process, dialogs: null!, deepSeekStore: store,
+            deepSeekCredentialStore: credentials, deepSeekApiClient: client,
+            codexVersionService: null!, connectionSwitchCoordinator: null!,
+            connectionIndexStore: new ConnectionIndexStore(paths), credentialHelperPath: "helper.exe");
+        viewModel.Accounts.Add(new AccountCardViewModel(connection));
+        return viewModel;
+    }
+
     [Fact]
     public async Task PendingSwitchJournalDisablesManualConnectionRefresh()
     {
@@ -185,23 +276,49 @@ public sealed class MainWindowViewModelRecoveryTests : IDisposable
 
     private sealed class SuccessfulDeepSeekApiClient : IDeepSeekApiClient
     {
+        private int _activeRequests;
+        public bool BlockFirstRequest { get; init; }
+        public bool FailBalance { get; init; }
+        public int BalanceRequests { get; private set; }
+        public int MaximumActiveRequests { get; private set; }
+        public TaskCompletionSource ReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task<IReadOnlyList<ApiModelDescriptor>> GetModelsAsync(string apiKey, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ApiModelDescriptor>>([new ApiModelDescriptor { Id = DeepSeekDefaults.Model }]);
-        public Task<DeepSeekBalanceSnapshot> GetBalanceAsync(
+        public async Task<DeepSeekBalanceSnapshot> GetBalanceAsync(
             string apiKey,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DeepSeekBalanceSnapshot
+            CancellationToken cancellationToken = default)
+        {
+            BalanceRequests++;
+            _activeRequests++;
+            MaximumActiveRequests = Math.Max(MaximumActiveRequests, _activeRequests);
+            try
             {
-                IsAvailable = true,
-                Balances =
-                [
-                    new DeepSeekBalanceInfo
-                    {
-                        Currency = "CNY",
-                        TotalBalance = 12.5m
-                    }
-                ]
-            });
+                if (BlockFirstRequest && BalanceRequests == 1)
+                {
+                    ReadStarted.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                if (FailBalance)
+                    throw new DeepSeekApiException(DeepSeekApiErrorKind.Timeout, "Timed out");
+                return new DeepSeekBalanceSnapshot
+                {
+                    IsAvailable = true,
+                    Balances =
+                    [
+                        new DeepSeekBalanceInfo
+                        {
+                            Currency = "CNY",
+                            TotalBalance = 12.5m
+                        }
+                    ]
+                };
+            }
+            finally
+            {
+                _activeRequests--;
+            }
+        }
 
         public Task<DeepSeekResponseTestResult> TestResponseAsync(
             string apiKey,

@@ -35,6 +35,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private AppSettings _settings = new();
     private bool _isBusy;
     private bool _isRefreshingAll;
+    private bool _isBackgroundRefresh;
     private bool _isSettingsPage;
     private int _quotaRefreshMinutes = AppSettings.DefaultRefreshMinutes;
     private bool _closeToTray = true;
@@ -103,7 +104,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             () => !IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery);
         RefreshAllCommand = new AsyncRelayCommand(
             RefreshAllAsync,
-            () => !IsBusy && !HasActiveRefresh && !HasPendingAccountRecovery);
+            () => !IsBusy && CanStartManualRefresh && !HasPendingAccountRecovery);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => !IsBusy);
         ShowAccountsCommand = new RelayCommand(ShowAccountsPage);
         ShowSettingsCommand = new RelayCommand(ShowSettingsPage);
@@ -114,9 +115,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             RefreshAccountAsync,
             account =>
                 !IsBusy &&
-                !HasActiveRefresh &&
+                CanStartManualRefresh &&
                 !HasPendingAccountRecovery &&
-                !account.IsRefreshing);
+                (!account.IsRefreshing || _isBackgroundRefresh));
         RenameAccountCommand = new AsyncRelayCommand<AccountCardViewModel>(
             RenameAccountAsync,
             account => !IsBusy && !HasPendingAccountRecovery && account.IsChatGpt);
@@ -169,8 +170,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public AccountCardViewModel? CurrentConnection => Accounts.FirstOrDefault(account => account.IsActive);
     public bool HasCurrentConnection => CurrentConnection is not null;
     public bool HasConnections => Accounts.Count > 0;
-    public string LatestSyncText => Accounts.Select(account => account.LastSyncedAt).Max() is { } synced
-        ? $"{synced.ToLocalTime():HH:mm} 更新" : "等待同步";
+    public string LatestSyncText
+    {
+        get
+        {
+            var previous = Accounts.Select(account => account.LastSyncedAt).Max() is { } synced
+                ? $"上次更新 {synced.ToLocalTime():M月d日 HH:mm}" : "等待同步";
+            return HasActiveRefresh ? "正在刷新…" : previous;
+        }
+    }
 
     public AsyncRelayCommand AddAccountCommand { get; }
     public AsyncRelayCommand ImportCurrentCommand { get; }
@@ -260,6 +268,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public bool IsWorking => IsBusy || IsRefreshingAll || HasActiveRefresh;
 
     private bool HasActiveRefresh => !_refreshTask.IsCompleted;
+    private bool CanStartManualRefresh => !HasActiveRefresh || _isBackgroundRefresh;
 
     private bool HasPendingAccountRecovery =>
         _switchCoordinator.HasPendingTransaction;
@@ -547,7 +556,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         silent: false,
         QuotaRefreshReason.Manual);
 
-    private async Task RefreshAllAsync(
+    internal async Task RefreshAllAsync(
         bool silent,
         QuotaRefreshReason reason)
     {
@@ -565,16 +574,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
+            if (reason == QuotaRefreshReason.Manual)
+            {
+                await TakeOverBackgroundRefreshAsync();
+            }
+
             await RunRefreshSessionAsync(async cancellationToken =>
             {
                 IsRefreshingAll = true;
                 var refreshedCount = 0;
+                var failedCount = 0;
                 try
                 {
-                    if (!silent)
-                    {
-                        StatusMessage = "正在刷新所有连接数据…";
-                    }
+                    StatusMessage = "正在刷新所有连接数据…";
 
                     foreach (var account in Accounts.ToList())
                     {
@@ -584,15 +596,31 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                             continue;
                         }
 
-                        await RefreshCardCoreAsync(
-                            account,
-                            reason,
-                            updateGlobalStatus: false,
-                            cancellationToken);
-                        refreshedCount++;
+                        StatusMessage = $"正在刷新 {account.Nickname}…";
+                        try
+                        {
+                            await RefreshCardCoreAsync(
+                                account,
+                                reason,
+                                updateGlobalStatus: false,
+                                cancellationToken);
+                            if (account.HasFreshQuota) refreshedCount++;
+                            else failedCount++;
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception)
+                        {
+                            // A provider failure must not prevent the remaining accounts from refreshing.
+                            failedCount++;
+                        }
                     }
 
-                    StatusMessage = refreshedCount == 0
+                    StatusMessage = failedCount > 0
+                        ? $"刷新完成：{refreshedCount} 个已更新，{failedCount} 个未更新，请查看连接状态"
+                        : refreshedCount == 0
                         ? "已跳过确认需要重新登录的账号"
                         : "连接数据已更新";
                 }
@@ -600,7 +628,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 {
                     IsRefreshingAll = false;
                 }
-            });
+            }, isBackground: reason != QuotaRefreshReason.Manual);
         }
         catch (OperationCanceledException)
         {
@@ -626,6 +654,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
+            await TakeOverBackgroundRefreshAsync();
             await RunRefreshSessionAsync(cancellationToken =>
                 RefreshCardCoreAsync(
                     account,
@@ -677,15 +706,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
             await SaveConnectionProjectionAsync(cancellationToken);
             NotifyConnectionsChanged();
-            if (updateGlobalStatus)
-            {
-                StatusMessage = $"{account.Nickname} 已更新";
-            }
         }
         finally
         {
             account.IsRefreshing = false;
             NotifyCommands();
+        }
+        if (updateGlobalStatus)
+        {
+            StatusMessage = account.HasFreshQuota
+                ? $"{account.Nickname} 已更新"
+                : $"{account.Nickname} 未更新：{account.QuotaStatusText}";
         }
     }
 
@@ -1993,7 +2024,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     private async Task RunRefreshSessionAsync(
-        Func<CancellationToken, Task> operation)
+        Func<CancellationToken, Task> operation,
+        bool isBackground = false)
     {
         if (HasActiveRefresh)
         {
@@ -2002,37 +2034,48 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             _lifetimeCts.Token);
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         _refreshCts = cancellation;
-        Task task;
-        try
-        {
-            task = operation(cancellation.Token);
-        }
-        catch
-        {
-            _refreshCts = null;
-            cancellation.Dispose();
-            throw;
-        }
-
-        _refreshTask = task;
+        // Register before invoking the operation, which can complete synchronously.
+        _refreshTask = completion.Task;
+        _isBackgroundRefresh = isBackground;
         OnPropertyChanged(nameof(IsWorking));
+        OnPropertyChanged(nameof(LatestSyncText));
         NotifyCommands();
         try
         {
-            await task;
+            await operation(cancellation.Token);
         }
         finally
         {
-            if (ReferenceEquals(_refreshTask, task))
+            if (ReferenceEquals(_refreshTask, completion.Task))
             {
                 _refreshTask = Task.CompletedTask;
                 _refreshCts = null;
+                _isBackgroundRefresh = false;
                 cancellation.Dispose();
                 OnPropertyChanged(nameof(IsWorking));
+                OnPropertyChanged(nameof(LatestSyncText));
                 NotifyCommands();
             }
+            completion.TrySetResult();
         }
+    }
+
+    private async Task TakeOverBackgroundRefreshAsync()
+    {
+        if (!HasActiveRefresh || !_isBackgroundRefresh)
+        {
+            return;
+        }
+
+        // Reserve the handoff so a second command cannot start another refresh.
+        _isBackgroundRefresh = false;
+        StatusMessage = "正在接管后台刷新…";
+        NotifyCommands();
+        await CancelAndDrainRefreshesAsync();
+        _lifetimeCts.Token.ThrowIfCancellationRequested();
     }
 
     private async Task CancelAndDrainRefreshesAsync()
@@ -2074,7 +2117,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     account,
                     QuotaRefreshReason.PostSwitch,
                     updateGlobalStatus: false,
-                    cancellationToken));
+                    cancellationToken), isBackground: true);
         }
         catch (OperationCanceledException)
         {
