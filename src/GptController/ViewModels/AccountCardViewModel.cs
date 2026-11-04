@@ -66,8 +66,11 @@ public sealed class AccountCardViewModel : ObservableObject
     public string LedgerResetText => IsApiProvider ? string.Empty
         : $"{LedgerPrimaryResetText} · {LedgerSecondaryResetText}";
     public string DetailKind => IsApiProvider ? "API 连接" : "ChatGPT 账号";
-    public string DetailUpdatedText => (IsDeepSeek ? _deepSeek!.ModelsFetchedAt : IsQwen ? _qwen!.ModelsFetchedAt : Profile.Quota?.FetchedAt) is { } updated
-        ? updated.ToLocalTime().ToString("M月d日 HH:mm") : "尚未同步";
+    public string DetailUpdatedText => IsRefreshing
+        ? "正在刷新…"
+        : LastSyncedAt is { } updated
+            ? $"{(HasFreshQuota ? string.Empty : "上次 ")}{updated.ToLocalTime():M月d日 HH:mm}"
+            : "尚未同步";
     public DateTimeOffset? LastSyncedAt => IsDeepSeek ? _deepSeek!.ModelsFetchedAt : IsQwen ? _qwen!.ModelsFetchedAt : Profile.Quota?.FetchedAt;
     public AccountProfile Profile => _profile ?? throw new InvalidOperationException(
         "API 连接不包含 ChatGPT 账号档案。");
@@ -266,7 +269,7 @@ public sealed class AccountCardViewModel : ObservableObject
             ? $"{quota.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
             : "尚未获取";
 
-    public string QuotaStatusText => IsDeepSeek
+    public string QuotaStatusText => IsRefreshing ? "正在刷新…" : IsDeepSeek
         ? _deepSeek!.Status switch
         {
             DeepSeekConnectionStatus.Available => "API 可用",
@@ -302,7 +305,14 @@ public sealed class AccountCardViewModel : ObservableObject
     public bool IsRefreshing
     {
         get => _isRefreshing;
-        set => SetProperty(ref _isRefreshing, value);
+        set
+        {
+            if (SetProperty(ref _isRefreshing, value))
+            {
+                OnPropertyChanged(nameof(DetailUpdatedText));
+                OnPropertyChanged(nameof(QuotaStatusText));
+            }
+        }
     }
 
     public void UpdateProfile(AccountProfile profile)

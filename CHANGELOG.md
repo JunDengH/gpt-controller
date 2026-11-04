@@ -7,6 +7,17 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-11-04
+
+### Fixed
+
+- Continue querying quota when optional app-server account metadata times out,
+  instead of ending the refresh before requesting current usage.
+- Allow manual refresh to cancel and take over a background refresh without waiting
+  for every connection's network timeout.
+- Show refresh progress and label cached timestamps as previous data; report failed
+  quota refreshes accurately and continue with remaining connections after a provider fails.
+
 ## [1.4.1] - 2026-10-14
 
 ### Fixed
