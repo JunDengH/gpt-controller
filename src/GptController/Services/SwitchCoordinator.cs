@@ -10,7 +10,8 @@ public sealed record SwitchJournal(
     Guid TargetProfileId,
     bool PreviousAuthExisted,
     string? BackupName,
-    DateTimeOffset StartedAt);
+    DateTimeOffset StartedAt,
+    string? LocalStateBackupName = null);
 
 public sealed class SwitchCoordinator
 {
@@ -232,6 +233,29 @@ public sealed class SwitchCoordinator
                     "仍有共享认证的 Codex 服务正在运行：" + string.Join("、", blockers) + "。请关闭后重试。");
             }
 
+            var localStatePath = Path.Combine(_paths.CodexHome, ".codex-global-state.json");
+            byte[]? localStateUpdate = null;
+            string? localStateBackupName = null;
+            try
+            {
+                if (File.Exists(localStatePath))
+                {
+                    var originalState = await File.ReadAllBytesAsync(localStatePath, cancellationToken);
+                    localStateUpdate = LocalProjectStateCompatibility.Prepare(originalState, targetCredential);
+                    if (localStateUpdate is not null)
+                    {
+                        localStateBackupName = $"codex-local-state-{Guid.NewGuid():N}.json";
+                        await AtomicFile.WriteAllBytesAsync(
+                            Path.Combine(_paths.Backups, localStateBackupName), originalState, cancellationToken);
+                    }
+                }
+            }
+            catch
+            {
+                await RestartIfStoppedAsync(wasChatGptRunning, CancellationToken.None);
+                throw;
+            }
+
             var previous = await _vault.GetActiveProfileAsync(cancellationToken);
             var previousAuthExisted = File.Exists(_paths.LiveAuthFile);
             previousLive = previousAuthExisted
@@ -254,7 +278,8 @@ public sealed class SwitchCoordinator
                 target.Id,
                 previousAuthExisted,
                 backupName,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                localStateBackupName);
             await AtomicFile.WriteAllBytesAsync(
                 _paths.TransactionFile,
                 JsonSerializer.SerializeToUtf8Bytes(journal, JsonOptions),
@@ -262,6 +287,8 @@ public sealed class SwitchCoordinator
 
             try
             {
+                if (localStateUpdate is not null)
+                    await AtomicFile.WriteAllBytesAsync(localStatePath, localStateUpdate, cancellationToken);
                 progress?.Report(SwitchStage.WritingCredential);
                 Directory.CreateDirectory(_paths.CodexHome);
                 await AtomicFile.WriteAllBytesAsync(
@@ -422,6 +449,16 @@ public sealed class SwitchCoordinator
         SwitchJournal journal,
         CancellationToken cancellationToken)
     {
+        if (journal.LocalStateBackupName is { } localBackup)
+        {
+            if (Path.GetFileName(localBackup) != localBackup ||
+                !localBackup.StartsWith("codex-local-state-", StringComparison.Ordinal))
+                throw new InvalidDataException("Invalid local project state backup name.");
+            var state = await File.ReadAllBytesAsync(Path.Combine(_paths.Backups, localBackup), cancellationToken);
+            await AtomicFile.WriteAllBytesAsync(
+                Path.Combine(_paths.CodexHome, ".codex-global-state.json"), state, cancellationToken);
+        }
+
         if (!journal.PreviousAuthExisted)
         {
             AtomicFile.TryDelete(_paths.LiveAuthFile);

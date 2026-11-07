@@ -7,6 +7,18 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-11-08
+
+### Fixed
+
+- Preserve filesystem project definitions and local chat associations when switching
+  ChatGPT accounts with clients that store account-scoped renderer state. Recover
+  missing local metadata from saved account states without copying cloud sidebar
+  state, remote projects, credentials, or conversation contents.
+- Back up local state before compatibility migration and restore it together with
+  credentials after a failed switch or interrupted-switch recovery. Unknown state
+  schemas stop the switch before replacing the login.
+
 ## [1.4.2] - 2026-11-04
 
 ### Fixed
