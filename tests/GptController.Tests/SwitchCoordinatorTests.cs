@@ -144,6 +144,79 @@ public sealed class SwitchCoordinatorTests
         Assert.True(processController.IsChatGptRunning());
     }
 
+    [Fact]
+    public async Task SuccessfulSwitchPreservesLocalProjectsAndCreatesRecoveryBackup()
+    {
+        await using var harness = await SwitchHarness.CreateAsync(new SuccessfulProcessController());
+        var statePath = Path.Combine(harness.Paths.CodexHome, ".codex-global-state.json");
+        var original = Encoding.UTF8.GetBytes(LocalProjectStateCompatibilityTests.CreateState().ToJsonString());
+        await File.WriteAllBytesAsync(statePath, original);
+
+        var result = await harness.Coordinator.SwitchAsync(harness.Profile.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEqual(original, await File.ReadAllBytesAsync(statePath));
+        var backup = Assert.Single(Directory.GetFiles(harness.Paths.Backups, "codex-local-state-*.json"));
+        Assert.Equal(original, await File.ReadAllBytesAsync(backup));
+        Assert.Equal(CreateCredential("account"), await File.ReadAllBytesAsync(harness.Paths.LiveAuthFile));
+    }
+
+    [Fact]
+    public async Task FailedLaunchRestoresLocalStateAlongsidePreviousCredential()
+    {
+        var process = new ScriptedProcessController();
+        process.QueueLaunchResults(false, true);
+        await using var harness = await SwitchHarness.CreateAsync(process, withPreviousProfile: true);
+        var statePath = Path.Combine(harness.Paths.CodexHome, ".codex-global-state.json");
+        var original = Encoding.UTF8.GetBytes(LocalProjectStateCompatibilityTests.CreateState().ToJsonString());
+        await File.WriteAllBytesAsync(statePath, original);
+
+        var result = await harness.Coordinator.SwitchAsync(harness.Profile.Id);
+
+        Assert.Equal(SwitchStatus.RolledBack, result.Status);
+        Assert.Equal(original, await File.ReadAllBytesAsync(statePath));
+        Assert.Equal(CreateCredential("previous-account"), await File.ReadAllBytesAsync(harness.Paths.LiveAuthFile));
+        Assert.False(File.Exists(harness.Paths.TransactionFile));
+    }
+
+    [Fact]
+    public async Task UnknownLocalStateSchemaDoesNotReplaceCredentialAndRestartsClient()
+    {
+        var process = new ScriptedProcessController();
+        await using var harness = await SwitchHarness.CreateAsync(process, withPreviousProfile: true);
+        var statePath = Path.Combine(harness.Paths.CodexHome, ".codex-global-state.json");
+        var original = "{\"electron-account-renderer-state-v1\":{\"inactive\":[]}}";
+        await File.WriteAllTextAsync(statePath, original);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => harness.Coordinator.SwitchAsync(harness.Profile.Id));
+
+        Assert.Equal(original, await File.ReadAllTextAsync(statePath));
+        Assert.Equal(CreateCredential("previous-account"), await File.ReadAllBytesAsync(harness.Paths.LiveAuthFile));
+        Assert.Equal(1, process.LaunchCount);
+        Assert.False(File.Exists(harness.Paths.TransactionFile));
+    }
+
+    [Fact]
+    public async Task PendingSwitchRecoveryRestoresLocalStateBackup()
+    {
+        var process = new ScriptedProcessController();
+        await using var harness = await SwitchHarness.CreateAsync(process, withPreviousProfile: true);
+        await harness.CreatePendingJournalAsync();
+        var journal = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(harness.Paths.TransactionFile))!;
+        var backupName = "codex-local-state-recovery.json";
+        journal["localStateBackupName"] = backupName;
+        var original = Encoding.UTF8.GetBytes(LocalProjectStateCompatibilityTests.CreateState().ToJsonString());
+        await File.WriteAllBytesAsync(Path.Combine(harness.Paths.Backups, backupName), original);
+        await File.WriteAllTextAsync(harness.Paths.TransactionFile, journal.ToJsonString());
+        var statePath = Path.Combine(harness.Paths.CodexHome, ".codex-global-state.json");
+        await File.WriteAllTextAsync(statePath, "{}");
+
+        Assert.True(await harness.Coordinator.RecoverPendingTransactionAsync());
+        Assert.Equal(original, await File.ReadAllBytesAsync(statePath));
+        Assert.Equal(CreateCredential("previous-account"), await File.ReadAllBytesAsync(harness.Paths.LiveAuthFile));
+        Assert.False(File.Exists(harness.Paths.TransactionFile));
+    }
+
     private sealed class SwitchHarness : IAsyncDisposable
     {
         private SwitchHarness(
@@ -376,7 +449,8 @@ public sealed class SwitchCoordinatorTests
                 ["https://api.openai.com/auth"] =
                     new Dictionary<string, string>
                     {
-                        ["chatgpt_account_id"] = accountId
+                        ["chatgpt_account_id"] = accountId,
+                        ["chatgpt_user_id"] = "target-user"
                     }
             });
         var jwt = $"{Base64Url(Encoding.UTF8.GetBytes("{}"))}.{Base64Url(payload)}.signature";

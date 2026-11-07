@@ -118,7 +118,10 @@ version. If migration fails, the application stops startup and leaves the old di
 unchanged. Runtime caches, logs, and temporary files are not migrated.
 
 GPT Controller does not copy ChatGPT Chromium cookies, browser profiles, projects,
-plugins, or local task history. Local project data remains shared between accounts;
+plugins, or conversation contents. Before switching, the controller backs up local
+state and restores filesystem project metadata and local chat associations in the
+target account scope; failed switches restore state along with credentials. Cloud
+sidebar state and remote projects are not copied;
 cloud data is isolated by the active official account.
 
 ## Official Codex runtime
