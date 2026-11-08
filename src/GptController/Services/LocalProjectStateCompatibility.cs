@@ -31,33 +31,20 @@ internal static class LocalProjectStateCompatibility
         }
 
         var projects = new JsonObject();
-        // Current state wins conflicts; inactive scopes only supply missing projects.
-        foreach (var scope in scopes)
+        // An explicit active list (including an empty list) is authoritative.
+        // Inactive caches are a bootstrap source only, never evidence to undo a
+        // removal made in the active account.
+        var hasActiveCatalog = root["local-projects"] is JsonObject;
+        foreach (var scope in hasActiveCatalog ? scopes.Take(1) : scopes)
             if (scope["local-projects"] is JsonObject local)
                 foreach (var project in local)
                     if (IsLocalProject(project.Key, project.Value) && !projects.ContainsKey(project.Key))
                         projects[project.Key] = project.Value!.DeepClone();
-        // Older clients recorded projects as saved folders rather than definitions.
-        var knownPaths = projects.SelectMany(p => p.Value!["rootPaths"]!.AsArray())
-            .Select(p => NormalizePath(p!.GetValue<string>())).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var scope in scopes)
-            if (scope["electron-saved-workspace-roots"] is JsonArray folders)
-                foreach (var folder in folders.OfType<JsonValue>())
-                    if (folder.TryGetValue<string>(out var path) && IsLocalPath(path) &&
-                        Directory.Exists(path) && knownPaths.Add(NormalizePath(path)))
-                    {
-                        var normalized = NormalizePath(path);
-                        var id = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(normalized.ToUpperInvariant())).AsSpan(0, 16)).ToString();
-                        projects[id] = new JsonObject
-                        {
-                            ["id"] = id, ["name"] = Path.GetFileName(normalized),
-                            ["rootPaths"] = new JsonArray(path),
-                            ["createdAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                            ["updatedAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                        };
-                    }
-        if (projects.Count == 0) return null;
+        // Saved folders and thread cwd hints can outlive project removal. They
+        // must never be promoted into new project definitions.
+        if (projects.Count == 0 && !hasActiveCatalog) return null;
 
+        var before = root.DeepClone();
         var targetIsCurrent = accountState["owner"]?.GetValue<string>() == targetKey;
         JsonObject target;
         if (targetIsCurrent) target = root;
@@ -67,9 +54,23 @@ internal static class LocalProjectStateCompatibility
                 inactive[targetKey] = new JsonObject { ["atoms"] = new JsonObject(), ["globals"] = new JsonObject() };
             target = inactive[targetKey]!["globals"]!.AsObject();
         }
-        var before = root.DeepClone();
         // Include existing target values first, so account-specific edits survive.
         var targetProjects = target["local-projects"] as JsonObject ?? new JsonObject();
+        var removedIds = targetProjects.Where(p => IsLocalProject(p.Key, p.Value) && !projects.ContainsKey(p.Key))
+            .Select(p => p.Key).ToHashSet();
+        foreach (var id in removedIds) targetProjects.Remove(id);
+        if (target["thread-project-assignments"] is JsonObject oldAssignments)
+            foreach (var assignment in oldAssignments.ToList())
+                if (assignment.Value is JsonObject value && value["projectKind"]?.GetValue<string>() == "local" &&
+                    value["projectId"] is JsonValue idValue && idValue.TryGetValue<string>(out var id) && removedIds.Contains(id))
+                    oldAssignments.Remove(assignment.Key);
+        foreach (var key in new[] { "project-order", "pinned-project-ids" })
+            if (target[key] is JsonArray ids)
+                for (var index = ids.Count - 1; index >= 0; index--)
+                    if (ids[index] is JsonValue value && value.TryGetValue<string>(out var id) && removedIds.Contains(id))
+                        ids.RemoveAt(index);
+        if (target["project-appearances"] is JsonObject appearances)
+            foreach (var id in removedIds) appearances.Remove(id);
         foreach (var project in projects)
             if (!targetProjects.ContainsKey(project.Key)) targetProjects[project.Key] = project.Value!.DeepClone();
         target["local-projects"] = targetProjects;
@@ -94,7 +95,6 @@ internal static class LocalProjectStateCompatibility
         if (assignments.Count > 0) target["thread-project-assignments"] = assignments;
         MergeMap(target, scopes, "thread-project-membership-host-ids", (id, v) =>
             assignments.ContainsKey(id) && v is JsonValue value && value.TryGetValue<string>(out var host) && host == "local");
-        MergeArray(target, scopes, "electron-saved-workspace-roots", IsLocalPath);
         foreach (var key in new[] { "project-order", "pinned-project-ids" })
             MergeArray(target, scopes, key, projects.ContainsKey);
         MergeMap(target, scopes, "project-appearances", (id, _) => projects.ContainsKey(id));

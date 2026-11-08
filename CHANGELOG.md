@@ -7,6 +7,16 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-11-08
+
+### Fixed
+
+- Stop recreating removed projects from historical saved folders, even when those
+  folders and old chat working-directory hints still exist on disk.
+- Treat an explicit active local project list, including an empty list, as the
+  source of truth when switching accounts. Do not restore removed entries from
+  stale inactive-account caches; retain cloud state and source folders.
+
 ## [1.4.3] - 2026-11-08
 
 ### Fixed
