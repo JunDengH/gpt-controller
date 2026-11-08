@@ -75,7 +75,7 @@ public sealed class LocalProjectStateCompatibilityTests
     }
 
     [Fact]
-    public void LegacySavedFolderRestoresProjectAndMatchesHistoricalThreadHint()
+    public void RemovedSavedFolderDoesNotBecomeAProjectEvenWhenDirectoryStillExists()
     {
         var directory = Path.Combine(Path.GetTempPath(), "GptController.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -86,11 +86,47 @@ public sealed class LocalProjectStateCompatibilityTests
             source["electron-saved-workspace-roots"] = new JsonArray(directory);
             source["thread-workspace-root-hints"] = new JsonObject { ["legacy-thread"] = directory };
             var target = TargetGlobals(Apply(root));
-            var id = target["thread-project-assignments"]!["legacy-thread"]!["projectId"]!.GetValue<string>();
-            Assert.Equal(directory, target["local-projects"]![id]!["rootPaths"]![0]!.GetValue<string>());
-            Assert.Equal(2, target["local-projects"]!.AsObject().Count);
+            Assert.Null(target["thread-project-assignments"]!["legacy-thread"]);
+            Assert.Single(target["local-projects"]!.AsObject());
+            Assert.Null(target["electron-saved-workspace-roots"]);
+            Assert.True(Directory.Exists(directory));
         }
         finally { Directory.Delete(directory); }
+    }
+
+    [Fact]
+    public void ActiveEmptyCatalogPreventsRestorationFromAnInactiveAccount()
+    {
+        var root = CreateState();
+        root["local-projects"] = new JsonObject();
+        var target = TargetGlobals(Apply(root));
+        Assert.Empty(target["local-projects"]!.AsObject());
+        Assert.Null(target["thread-project-assignments"]);
+        Assert.NotNull(root[LocalProjectStateCompatibility.AccountStateKey]!["inactive"]!["old"]!["globals"]!["local-projects"]!["local-project"]);
+    }
+
+    [Fact]
+    public void SwitchingDoesNotResurrectAProjectRemovedFromTheActiveCatalog()
+    {
+        var root = CreateState();
+        root["local-projects"] = JsonNode.Parse("""{"kept":{"id":"kept","name":"keep me","rootPaths":["D:\\kept"]}}""");
+        var old = root[LocalProjectStateCompatibility.AccountStateKey]!["inactive"]!["old"]!["globals"]!;
+        var target = TargetGlobals(root);
+        target["local-projects"] = old["local-projects"]!.DeepClone();
+        target["thread-project-assignments"] = old["thread-project-assignments"]!.DeepClone();
+        target["project-order"] = new JsonArray("local-project", "g-p-cloud");
+        target["pinned-project-ids"] = new JsonArray("local-project");
+        var atomsBefore = root[LocalProjectStateCompatibility.AccountStateKey]!["inactive"]![TargetKey]!["atoms"]!.DeepClone();
+        var result = Apply(root);
+        var updated = TargetGlobals(result);
+        Assert.NotNull(updated["local-projects"]!["kept"]);
+        Assert.Null(updated["local-projects"]!["local-project"]);
+        Assert.NotNull(updated["local-projects"]!["g-p-cloud"]);
+        Assert.Null(updated["thread-project-assignments"]!["local-thread"]);
+        Assert.DoesNotContain(updated["project-order"]!.AsArray(), v => v!.GetValue<string>() == "local-project");
+        Assert.Empty(updated["pinned-project-ids"]!.AsArray());
+        Assert.True(JsonNode.DeepEquals(atomsBefore, result[LocalProjectStateCompatibility.AccountStateKey]!["inactive"]![TargetKey]!["atoms"]));
+        Assert.Null(LocalProjectStateCompatibility.Prepare(Encoding.UTF8.GetBytes(result.ToJsonString()), Credential()));
     }
 
     private static JsonObject Apply(JsonObject state) => JsonNode.Parse(
